@@ -50,7 +50,6 @@ public class Transfe_Intake extends LinearOpMode {
         Transfer.setPosition(servoHome);
 
         waitForStart();
-        runtime.reset();
 
         while (opModeIsActive()) {
             double max;
@@ -79,6 +78,12 @@ public class Transfe_Intake extends LinearOpMode {
                 backLeftPower   /= max;
                 backRightPower  /= max;
             }
+
+            frontLeftDrive.setPower(frontLeftPower);
+            frontRightDrive.setPower(frontRightPower);
+            backLeftDrive.setPower(backLeftPower);
+            backRightDrive.setPower(backRightPower);
+
             // --------- INTAKE TOGGLE (Circle) ----------
             boolean circle = gamepad1.circle;
 
@@ -88,13 +93,12 @@ public class Transfe_Intake extends LinearOpMode {
             lastCircle = circle;
 
             if (intakeOn) {
-                Intake1.setPower(1.0);
-                Intake2.setPower(1.0);
+                Intake1.setPower(1);
+                Intake2.setPower(1);
             } else {
                 Intake1.setPower(0);
                 Intake2.setPower(0);
             }
-
 
             // --------- SERVO TOGGLE (X) ----------
             if (gamepad1.left_bumper) {
@@ -102,8 +106,6 @@ public class Transfe_Intake extends LinearOpMode {
             } else if (gamepad1.right_bumper) {
                 Transfer.setPosition(servoExtendedPos);
             }
-
-
 
             // --------- SHOOTER TOGGLE (Triangle) ----------
             boolean triangle = gamepad1.triangle;
@@ -114,9 +116,37 @@ public class Transfe_Intake extends LinearOpMode {
             lastTriangle = triangle;
 
             if (shooterOn) {
-                Shooter.setPower(-0.5);
+                Shooter.setPower(-0.8);
             } else {
                 Shooter.setPower(0);
+            }
+            // --------- SQUARE BUTTON: Transfer Pulse ----------
+            if (gamepad1.square) {
+
+                // Save previous intake state
+                boolean wasIntakeOn = intakeOn;
+
+                // Turn intake OFF
+                Intake1.setPower(0);
+                Intake2.setPower(0);
+
+                // Move servo forward
+                Transfer.setPosition(servoExtendedPos);
+
+                // Wait 0.5 seconds
+                sleep(500);
+
+                // Move servo back
+                Transfer.setPosition(servoHome);
+
+                // If intake was ON before, turn it back on
+                if (wasIntakeOn) {
+                    Intake1.setPower(1);
+                    Intake2.setPower(1);
+                }
+
+                // Small debounce so holding Square doesn't spam the sequence
+                sleep(250);
             }
 
 
@@ -128,3 +158,5 @@ public class Transfe_Intake extends LinearOpMode {
         }
     }
 }
+
+
