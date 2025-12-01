@@ -21,8 +21,9 @@ public class Transfe_Intake extends LinearOpMode {
 
     // Individual toggle states
     private boolean intakeOn = false;
+    private boolean intakeBack = false;
     private boolean lastCircle = false;
-
+    private boolean lastX = false;
     private boolean shooterOn = false;
     private boolean lastTriangle = false;
     // Servo positions
@@ -95,8 +96,23 @@ public class Transfe_Intake extends LinearOpMode {
                 Intake2.setPower(0);
             }
 
+            //---------- REVERSE INTAKE (X) ----------
+            boolean X = gamepad1.x;
 
-            // --------- SERVO TOGGLE (X) ----------
+            if(X && !lastX) {
+                intakeBack = !intakeBack;
+            }
+            lastX = X;
+
+            if (intakeBack) {
+                Intake1.setPower(-1.0);
+                Intake2.setPower(-1.0);
+            } else {
+              Intake1.setPower(0);
+              Intake2.setPower(0);
+            }
+
+            // --------- SERVO TOGGLE (BUMPERS) ----------
             if (gamepad1.left_bumper) {
                 Transfer.setPosition(servoHome);
             } else if (gamepad1.right_bumper) {
