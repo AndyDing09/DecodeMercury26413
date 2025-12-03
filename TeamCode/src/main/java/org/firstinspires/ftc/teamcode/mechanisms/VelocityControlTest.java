@@ -20,7 +20,7 @@ public class VelocityControlTest extends LinearOpMode {
 
     @Override
     public void runOpMode() {
-        shooterMotor = hardwareMap.get(DcMotorEx.class, "motor1");
+        shooterMotor = hardwareMap.get(DcMotorEx.class, "Shooter");
         shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
