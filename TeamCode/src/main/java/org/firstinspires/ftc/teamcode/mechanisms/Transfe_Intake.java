@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.mechanisms;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -17,7 +18,8 @@ public class Transfe_Intake extends LinearOpMode {
     private DcMotor backRightDrive = null;
     private DcMotor Intake1;
     private DcMotor Intake2;
-    private DcMotor Shooter;
+    private DcMotorEx shooterMotor;
+    private DcMotorEx shooterMotor1;
     private Servo Transfer;
     private Servo TurnTable2;
 
@@ -26,10 +28,14 @@ public class Transfe_Intake extends LinearOpMode {
     private boolean lastCircle = false;
 
     private boolean shooterOn = false;
-    private boolean lastTriangle = false;
     // Servo positions
     private double servoHome = 0.075;
     private double servoExtendedPos = 0;
+    private double targetRPM = 1000;      // start speed// change step
+    private final double MAX_RPM = 6000;  // depends on motor type
+    private final double MIN_RPM = 0;
+    private double fastRPM = 6000;
+    private double slowRPM = 3000;
 
 
     @Override
@@ -38,7 +44,8 @@ public class Transfe_Intake extends LinearOpMode {
         Intake1 = hardwareMap.dcMotor.get("Intake1");
         Intake2 = hardwareMap.dcMotor.get("Intake2");
         Transfer = hardwareMap.servo.get("Transfer");
-        Shooter = hardwareMap.dcMotor.get("Shooter");
+        shooterMotor = hardwareMap.get(DcMotorEx.class, "Shooter");
+        shooterMotor1 = hardwareMap.get(DcMotorEx.class,"Shooter1");
         frontLeftDrive = hardwareMap.get(DcMotor.class, "front_left_drive");
         backLeftDrive = hardwareMap.get(DcMotor.class, "back_left_drive");
         frontRightDrive = hardwareMap.get(DcMotor.class, "front_right_drive");
@@ -50,7 +57,11 @@ public class Transfe_Intake extends LinearOpMode {
         backLeftDrive.setDirection(DcMotor.Direction.REVERSE);
         frontRightDrive.setDirection(DcMotor.Direction.FORWARD);
         backRightDrive.setDirection(DcMotor.Direction.REVERSE);
-
+        shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        shooterMotor1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooterMotor1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
         Transfer.setPosition(servoHome);
         TurnTable2.setPosition(0.1);
         waitForStart();
@@ -121,18 +132,23 @@ public class Transfe_Intake extends LinearOpMode {
             }
 
             // --------- SHOOTER TOGGLE (Triangle) ----------
-            boolean triangle = gamepad1.triangle;
-
-            if (triangle && !lastTriangle) {
-                shooterOn = !shooterOn;
+            if (gamepad1.triangle) {
+                targetRPM = fastRPM;
+                sleep(200); // debounce
+            } else if (gamepad1.dpad_left) {
+                targetRPM = slowRPM;
+                sleep(200);
             }
-            lastTriangle = triangle;
 
-            if (shooterOn) {
-                Shooter.setPower(-0.8);
-            } else {
-                Shooter.setPower(0);
-            }
+            // Clamp RPM
+            targetRPM = Math.max(MIN_RPM, Math.min(MAX_RPM, targetRPM));
+
+            // Convert RPM to ticks per second (GoBilda 312RPM motor = 537.7 ticks/rev)
+            double ticksPerSec = (targetRPM * 537.7) / 60.0;
+
+            // Set velocity
+            shooterMotor.setVelocity(ticksPerSec);
+            shooterMotor1.setVelocity(ticksPerSec);
 
             if (gamepad1.cross) {
                 // Turn intake OFF
@@ -173,6 +189,12 @@ public class Transfe_Intake extends LinearOpMode {
                 telemetry.addData("Intake On", intakeOn);
                 telemetry.addData("Shooter On", shooterOn);
                 telemetry.addData("Servo Position", Transfer.getPosition());
+                telemetry.addData("Target RPM", targetRPM);
+                telemetry.addData("Actual Velocity (ticks/s)", shooterMotor.getVelocity());
+                telemetry.addData("Actual RPM", (shooterMotor.getVelocity() * 60) / 537.7);
+                telemetry.addData("Target RPM", targetRPM);
+                telemetry.addData("Actual Velocity (ticks/s)", shooterMotor1.getVelocity());
+                telemetry.addData("Actual RPM", (shooterMotor1.getVelocity() * 60) / 537.7);
                 telemetry.update();
             }
         }
