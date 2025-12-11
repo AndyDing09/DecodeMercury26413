@@ -36,8 +36,8 @@ public class TeleOp1 extends LinearOpMode {
     private double targetRPM = 0;      // start speed// change step
     private final double MAX_RPM = 6000;  // depends on motor type
     private final double MIN_RPM = 0;
-    private double fastRPM = 6000;
-    private double slowRPM = 3000;
+    private double fastRPM = 3000;
+    private double slowRPM = 1620;
 
 
 
@@ -176,7 +176,7 @@ public class TeleOp1 extends LinearOpMode {
              targetRPM = Math.max(MIN_RPM, Math.min(MAX_RPM, targetRPM));
 
             // Convert RPM to ticks per second (GoBilda 312RPM motor = 537.7 ticks/rev)
-            double ticksPerSec = (targetRPM * 537.7) / 60.0;
+            double ticksPerSec = targetRPM;// * 537.7) / 60.0;
 
             // Set velocity
             shooterMotor.setVelocity(ticksPerSec);
@@ -227,10 +227,10 @@ public class TeleOp1 extends LinearOpMode {
             telemetry.addData("Servo Position", Transfer.getPosition());
             telemetry.addData("Target RPM", targetRPM);
             telemetry.addData("Actual Velocity (ticks/s)", shooterMotor.getVelocity());
-            telemetry.addData("Actual RPM", (shooterMotor.getVelocity() * 60) / 537.7);
+            telemetry.addData("Actual RPM", (shooterMotor.getVelocity())); // * 60) / 537.7);
             telemetry.addData("Target RPM", targetRPM);
             telemetry.addData("Actual Velocity (ticks/s)", shooterMotor1.getVelocity());
-            telemetry.addData("Actual RPM", (shooterMotor1.getVelocity() * 60) / 537.7);
+            telemetry.addData("Actual RPM", (shooterMotor1.getVelocity()));// * 60) / 537.7);
             telemetry.update();
         }
     }
