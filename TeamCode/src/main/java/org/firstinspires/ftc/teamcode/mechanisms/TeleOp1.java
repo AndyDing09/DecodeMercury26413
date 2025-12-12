@@ -6,49 +6,58 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
-import com.qualcomm.robotcore.util.ElapsedTime;
 
 @TeleOp(name="TeleOp1")
 public class TeleOp1 extends LinearOpMode {
 
-    private ElapsedTime runtime = new ElapsedTime();
     private DcMotor frontLeftDrive = null;
     private DcMotor backLeftDrive = null;
     private DcMotor frontRightDrive = null;
     private DcMotor backRightDrive = null;
+
     private DcMotor Intake1;
     private DcMotor Intake2;
+
     private DcMotorEx shooterMotor;
     private DcMotorEx shooterMotor1;
+
     private Servo Transfer;
     private Servo TurnTable2;
-
-    // Individual toggle states
+    private Servo transferBlocker;
+    // ---------- Intake toggle ----------
     private boolean intakeOn = false;
     private boolean lastCircle = false;
-    private boolean lastleftBumper = false;
-    private boolean lastrightBumper = false;
+
+    // ---------- Shooter toggle + preset ----------
     private boolean shooterOn = false;
+    private boolean lastLeftBumper = false;
+    private boolean lastRightBumper = false;
+    private boolean lastTriangle = false; // optional off button
 
-    // Servo positions
-    private double servoHome = 0.075;
-    private double servoExtendedPos = 0;
-    private double turntableStart = 0.1;
+    // ---------- Servo positions ----------
+    private final double servoHome = 0.075;
+    private final double servoExtendedPos = 0.0;
+    private final double ServoStart = 0.5;
 
-    // NEW — Turntable increment control
+    private final double turntableStart = 0.1;
+
+    // ---------- Turntable increment ----------
     private double turntablePos = turntableStart;
-    private final double TURN_STEP = 0.02;
-    private final double TURN_MIN = 0.0;
-    private final double TURN_MAX = 1.0;
-    private boolean lastleftBumper2 = false;
-    private boolean lastrightBumper2 = false;
+    private static final double TURN_STEP = 0.02;
+    private static final double TURN_MIN = 0.0;
+    private static final double TURN_MAX = 1.0;
+    private boolean lastLeftBumper2 = false;
+    private boolean lastRightBumper2 = false;
 
-    private double targetRPM = 0;      // start speed// change step
-    private final double MAX_RPM = 6000;  // depends on motor type
-    private final double MIN_RPM = 0;
-    private double fastRPM = 3000;
-    private double slowRPM = 1620;
+    // ---------- Shooter speed ----------
+    private double targetRPM = 0;
+    private static final double MAX_RPM = 6000;
+    private static final double MIN_RPM = 0;
+    private final double fastRPM = 3000;
+    private final double slowRPM = 1620;
 
+    // goBILDA 6000RPM Yellow Jacket (1:1) encoder: 28 ticks per output revolution
+    private static final double TICKS_PER_REV = 28.0;
 
     @Override
     public void runOpMode() throws InterruptedException {
@@ -56,53 +65,57 @@ public class TeleOp1 extends LinearOpMode {
         Intake1 = hardwareMap.dcMotor.get("Intake1");
         Intake2 = hardwareMap.dcMotor.get("Intake2");
         Transfer = hardwareMap.servo.get("Transfer");
-        shooterMotor = hardwareMap.get(DcMotorEx.class, "Shooter");
+        transferBlocker = hardwareMap.servo.get("transferBlocker");
+        shooterMotor  = hardwareMap.get(DcMotorEx.class, "Shooter");
         shooterMotor1 = hardwareMap.get(DcMotorEx.class, "Shooter1");
-        frontLeftDrive = hardwareMap.get(DcMotor.class, "front_left_drive");
-        backLeftDrive = hardwareMap.get(DcMotor.class, "back_left_drive");
+
+        frontLeftDrive  = hardwareMap.get(DcMotor.class, "front_left_drive");
+        backLeftDrive   = hardwareMap.get(DcMotor.class, "back_left_drive");
         frontRightDrive = hardwareMap.get(DcMotor.class, "front_right_drive");
-        backRightDrive = hardwareMap.get(DcMotor.class, "back_right_drive");
+        backRightDrive  = hardwareMap.get(DcMotor.class, "back_right_drive");
+
         TurnTable2 = hardwareMap.servo.get("TurnTable");
 
-        // Reverse one intake motor
+        // Directions
         Intake2.setDirection(DcMotor.Direction.REVERSE);
+
         frontLeftDrive.setDirection(DcMotor.Direction.REVERSE);
         backLeftDrive.setDirection(DcMotor.Direction.REVERSE);
         frontRightDrive.setDirection(DcMotor.Direction.FORWARD);
         backRightDrive.setDirection(DcMotor.Direction.FORWARD);
 
+        // Shooter setup
         shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
         shooterMotor1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooterMotor1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
 
+        // If your 2 shooter motors are mirrored mechanically, you may need to reverse one
+        shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
+        // shooterMotor1.setDirection(DcMotorSimple.Direction.FORWARD); // change if needed
+
+        // Init servo positions
         Transfer.setPosition(servoHome);
         TurnTable2.setPosition(turntableStart);
-
+        transferBlocker.setPosition(ServoStart);
         waitForStart();
-
 
         while (opModeIsActive()) {
 
-            double max;
-
-            //ALL RELATED TO DRIVING  DON'T TOUCH
-            // POV Mode uses left joystick to go forward & strafe, and right joystick to rotate.
-            double axial = -gamepad1.left_stick_y;  // Note: pushing stick forward gives negative value
+            // =======================
+            // DRIVING (unchanged logic)
+            // =======================
+            double axial = -gamepad1.left_stick_y;
             double lateral = gamepad1.left_stick_x;
             double yaw = gamepad1.right_stick_x;
 
-            // Combine the joystick requests for each axis-motion to determine each wheel's power.
-            // Set up a variable for each drive wheel to save the power level for telemetry.
             double frontLeftPower = axial + lateral + yaw;
             double frontRightPower = axial - lateral - yaw;
             double backLeftPower = axial - lateral + yaw;
             double backRightPower = axial + lateral - yaw;
 
-            // Normalize the values so no wheel power exceeds 100%
-            // This ensures that the robot maintains the desired motion.
-            max = Math.max(Math.abs(frontLeftPower), Math.abs(frontRightPower));
+            double max = Math.max(Math.abs(frontLeftPower), Math.abs(frontRightPower));
             max = Math.max(max, Math.abs(backLeftPower));
             max = Math.max(max, Math.abs(backRightPower));
 
@@ -117,153 +130,141 @@ public class TeleOp1 extends LinearOpMode {
             frontRightDrive.setPower(frontRightPower);
             backLeftDrive.setPower(backLeftPower);
             backRightDrive.setPower(backRightPower);
-            //END OF DON'T TOUCH DRIVING
 
+            // =======================
+            // TURNTABLE (gamepad2 bumpers)
+            // =======================
+            boolean lBump2 = gamepad2.left_bumper;
+            boolean rBump2 = gamepad2.right_bumper;
 
-
-            // --------- TURNTABLE SPIN ---------
-            //Gamepad2.bumpers left and right both respective to direction
-            boolean lBump = gamepad2.left_bumper;
-            boolean rBump = gamepad2.right_bumper;
-
-            if (lBump && !lastleftBumper2) {
-                turntablePos += TURN_STEP;
-                turntablePos = Math.min(turntablePos, TURN_MAX);
+            if (lBump2 && !lastLeftBumper2) {
+                turntablePos = Math.min(turntablePos + TURN_STEP, TURN_MAX);
+                TurnTable2.setPosition(turntablePos);
+            }
+            if (rBump2 && !lastRightBumper2) {
+                turntablePos = Math.max(turntablePos - TURN_STEP, TURN_MIN);
                 TurnTable2.setPosition(turntablePos);
             }
 
-            if (rBump && !lastrightBumper2) {
-                turntablePos -= TURN_STEP;
-                turntablePos = Math.max(turntablePos, TURN_MIN);
-                TurnTable2.setPosition(turntablePos);
-            }
+            lastLeftBumper2 = lBump2;
+            lastRightBumper2 = rBump2;
 
-            lastleftBumper2 = lBump;
-            lastrightBumper2 = rBump;
-
-
-
-            // --------- Intake on/off --------
-            // Gamepad1.circle turn intake on (click once) and off (click again)
+            // =======================
+            // INTAKE TOGGLE (gamepad1 circle)
+            // =======================
             boolean circle = gamepad1.circle;
-
             if (circle && !lastCircle) {
                 intakeOn = !intakeOn;
             }
             lastCircle = circle;
 
-            if (intakeOn) {
-                Intake1.setPower(1);
-                Intake2.setPower(1);
+            // Reverse intake while holding X (cross). Otherwise follow intakeOn.
+            if (gamepad1.cross) {
+                Intake1.setPower(-1.0);
+                Intake2.setPower(-1.0);
+            } else if (intakeOn) {
+                Intake1.setPower(1.0);
+                Intake2.setPower(1.0);
             } else {
-                Intake1.setPower(0);
-                Intake2.setPower(0);
+                Intake1.setPower(0.0);
+                Intake2.setPower(0.0);
             }
 
-
-
-            // --------- BACKUP Button for Transfer from Intake to shooter ----------
-            // dpad_up and dpad_down to toggle the transfer servo
-            // servo initial position down
+            // =======================
+            // TRANSFER SERVO MANUAL (dpad up/down)
+            // =======================
             if (gamepad1.dpad_up) {
                 Transfer.setPosition(servoHome);
             } else if (gamepad1.dpad_down) {
                 Transfer.setPosition(servoExtendedPos);
             }
 
-
-
-            // --------- Control motors for shooter ----------
-            // Left_bumper turn on (click once) and off (click again) motors at fastRPM (for shooting from far)
-            // Right_bumper turn on (click once) and off (click again) motors at slowRPM (for shooting from closeby)
-            boolean leftBumper = gamepad1.left_bumper;
-
-            if (leftBumper && lastleftBumper) {
-                shooterOn = !shooterOn;
-            }
-            lastleftBumper = leftBumper;
-
-            boolean rightBumper = gamepad1.right_bumper;
-
-            if (rightBumper && lastrightBumper) {
-                shooterOn = !shooterOn;
-            }
-            lastrightBumper = rightBumper;
-
-
-            if (gamepad1.left_bumper) {
-                targetRPM = fastRPM;
-                sleep(200); // debounce
-            } else if (gamepad1.right_bumper) {
-                targetRPM = slowRPM;
-                sleep(200);
-            }
-
-            // Clamp RPM
-            targetRPM = Math.max(MIN_RPM, Math.min(MAX_RPM, targetRPM));
-
-            // Convert RPM to ticks per second (GoBilda 312RPM motor = 537.7 ticks/rev)
-            double ticksPerSec = targetRPM; // * 537.7) / 60.0;
-
-            // Set velocity
-            shooterMotor.setVelocity(ticksPerSec);
-            shooterMotor1.setVelocity(ticksPerSec);
-
-
-
-            // -------- REVERSE Intake direction to spit out ball --------
-            // Gamepad1.cross button click once to reserver intake if intake is off
-            // Gamepad1.cross button hold to reverse intake if intake is on
-            if (gamepad1.cross) {
-                //Turn intake OFF
-                Intake1.setPower(-1.0);
-                Intake2.setPower(-1.0);
-            }
-
-
-
-            // --------- MAIN Transfer code: Transfer Macro ----------
-            // Gamepad1.square button initiates the transfer process by first turn off intake, then turn on transfer servo
+            // =======================
+            // TRANSFER MACRO (square)
+            // =======================
             if (gamepad1.square) {
-
-                // Save previous intake state
                 boolean wasIntakeOn = intakeOn;
 
-                // Turn intake OFF
+                // Stop intake immediately (regardless of toggle)
+                Intake1.setPower(-0.5);
+                Intake2.setPower(-0.5);
+                sleep(500);
                 Intake1.setPower(0);
                 Intake2.setPower(0);
-
-                // Move servo forward
+                transferBlocker.setPosition(0.65);
                 Transfer.setPosition(servoExtendedPos);
-
-                // Wait 0.5 seconds
                 sleep(500);
-
-                // Move servo back
                 Transfer.setPosition(servoHome);
-
-                // If intake was ON before, turn it back on
-                if (wasIntakeOn) {
+                transferBlocker.setPosition(ServoStart);
+                sleep(200);
+                // Restore intake power only if it was on AND user isn't holding cross to reverse
+                if (wasIntakeOn && !gamepad1.cross) {
                     Intake1.setPower(1);
                     Intake2.setPower(1);
                 }
 
-                // Small debounce so holding Square doesn't spam the sequence
-                sleep(250);
+                sleep(250); // keep this macro debounce (only runs when square is pressed)
+            }
+            // Servo that blocks balls from coming in using button
+            //Use the dpad up and down from the second gamepad
+            if (gamepad2.dpad_up) {
+                transferBlocker.setPosition(ServoStart);
+            } else if (gamepad2.dpad_down) {
+                transferBlocker.setPosition(0.65);
+            }
+            // =======================
+            // SHOOTER CONTROL (gamepad1 bumpers)
+            // - tap LB: turn ON + set FAST
+            // - tap RB: turn ON + set SLOW
+            // - tap TRIANGLE: turn OFF (optional)
+            // =======================
+            boolean leftBumper = gamepad1.left_bumper;
+            boolean rightBumper = gamepad1.right_bumper;
+            boolean triangle = gamepad1.triangle;
+
+            if (leftBumper && !lastLeftBumper) {
+                shooterOn = true;
+                targetRPM = fastRPM;
+            }
+            if (rightBumper && !lastRightBumper) {
+                shooterOn = true;
+                targetRPM = slowRPM;
+            }
+            if (triangle && !lastTriangle) {
+                shooterOn = false;
+                targetRPM = 0;
             }
 
+            lastLeftBumper = leftBumper;
+            lastRightBumper = rightBumper;
+            lastTriangle = triangle;
 
+            // Clamp RPM
+            targetRPM = Math.max(MIN_RPM, Math.min(MAX_RPM, targetRPM));
 
-            // --------- TELEMETRY for driving and shooter calculation ----------
+            // RPM -> ticks/sec for setVelocity()
+            double cmdTicksPerSec = shooterOn ? (targetRPM * TICKS_PER_REV) / 60.0 : 0.0;
+
+            shooterMotor.setVelocity(cmdTicksPerSec);
+            shooterMotor1.setVelocity(cmdTicksPerSec);
+
+            // =======================
+            // TELEMETRY (correct RPM)
+            // =======================
+            double actualRPM0 = shooterMotor.getVelocity() * 60.0 / TICKS_PER_REV;
+            double actualRPM1 = shooterMotor1.getVelocity() * 60.0 / TICKS_PER_REV;
+
             telemetry.addData("Intake On", intakeOn);
             telemetry.addData("Shooter On", shooterOn);
-            telemetry.addData("Servo Position", Transfer.getPosition());
+            telemetry.addData("Transfer Pos", Transfer.getPosition());
             telemetry.addData("Turntable Pos", turntablePos);
+
             telemetry.addData("Target RPM", targetRPM);
-            telemetry.addData("Actual Velocity (ticks/s)", shooterMotor.getVelocity());
-            telemetry.addData("Actual RPM", (shooterMotor.getVelocity()));
-            telemetry.addData("Actual Velocity (ticks/s)", shooterMotor1.getVelocity());
-            telemetry.addData("Actual RPM", (shooterMotor1.getVelocity()));
+            telemetry.addData("Cmd Vel (ticks/s)", cmdTicksPerSec);
+
+            telemetry.addData("Shooter RPM", actualRPM0);
+            telemetry.addData("Shooter1 RPM", actualRPM1);
+
             telemetry.update();
         }
     }
