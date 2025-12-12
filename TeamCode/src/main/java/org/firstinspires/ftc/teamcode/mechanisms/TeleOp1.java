@@ -29,17 +29,25 @@ public class TeleOp1 extends LinearOpMode {
     private boolean lastleftBumper = false;
     private boolean lastrightBumper = false;
     private boolean shooterOn = false;
+
     // Servo positions
     private double servoHome = 0.075;
     private double servoExtendedPos = 0;
     private double turntableStart = 0.1;
+
+    // NEW — Turntable increment control
+    private double turntablePos = turntableStart;
+    private final double TURN_STEP = 0.02;
+    private final double TURN_MIN = 0.0;
+    private final double TURN_MAX = 1.0;
+    private boolean lastleftBumper2 = false;
+    private boolean lastrightBumper2 = false;
+
     private double targetRPM = 0;      // start speed// change step
     private final double MAX_RPM = 6000;  // depends on motor type
     private final double MIN_RPM = 0;
     private double fastRPM = 3000;
     private double slowRPM = 1620;
-
-
 
 
     @Override
@@ -55,24 +63,31 @@ public class TeleOp1 extends LinearOpMode {
         frontRightDrive = hardwareMap.get(DcMotor.class, "front_right_drive");
         backRightDrive = hardwareMap.get(DcMotor.class, "back_right_drive");
         TurnTable2 = hardwareMap.servo.get("TurnTable");
+
         // Reverse one intake motor
         Intake2.setDirection(DcMotor.Direction.REVERSE);
         frontLeftDrive.setDirection(DcMotor.Direction.REVERSE);
         backLeftDrive.setDirection(DcMotor.Direction.REVERSE);
         frontRightDrive.setDirection(DcMotor.Direction.FORWARD);
         backRightDrive.setDirection(DcMotor.Direction.FORWARD);
+
         shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         shooterMotor1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooterMotor1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
+
         Transfer.setPosition(servoHome);
         TurnTable2.setPosition(turntableStart);
+
         waitForStart();
 
+
         while (opModeIsActive()) {
+
             double max;
-//ALL RELATED TO DRIVING  DON'T TOUCH
+
+            //ALL RELATED TO DRIVING  DON'T TOUCH
             // POV Mode uses left joystick to go forward & strafe, and right joystick to rotate.
             double axial = -gamepad1.left_stick_y;  // Note: pushing stick forward gives negative value
             double lateral = gamepad1.left_stick_x;
@@ -102,15 +117,31 @@ public class TeleOp1 extends LinearOpMode {
             frontRightDrive.setPower(frontRightPower);
             backLeftDrive.setPower(backLeftPower);
             backRightDrive.setPower(backRightPower);
-//END OF DON'T TOUCH DRIVING
+            //END OF DON'T TOUCH DRIVING
 
-            // --------- TURNTABLE SERVO INCREMENT CONTROL (DPAD UP/DOWN) ----------
 
-            if (gamepad2.left_bumper) {
-                TurnTable2.setPosition(turntableStart);
-            } else if (gamepad2.right_bumper) {
-                TurnTable2.setPosition(servoExtendedPos);
+
+            // --------- TURNTABLE SPIN ---------
+            //Gamepad2.bumpers left and right both respective to direction
+            boolean lBump = gamepad2.left_bumper;
+            boolean rBump = gamepad2.right_bumper;
+
+            if (lBump && !lastleftBumper2) {
+                turntablePos += TURN_STEP;
+                turntablePos = Math.min(turntablePos, TURN_MAX);
+                TurnTable2.setPosition(turntablePos);
             }
+
+            if (rBump && !lastrightBumper2) {
+                turntablePos -= TURN_STEP;
+                turntablePos = Math.max(turntablePos, TURN_MIN);
+                TurnTable2.setPosition(turntablePos);
+            }
+
+            lastleftBumper2 = lBump;
+            lastrightBumper2 = rBump;
+
+
 
             // --------- Intake on/off --------
             // Gamepad1.circle turn intake on (click once) and off (click again)
@@ -129,6 +160,8 @@ public class TeleOp1 extends LinearOpMode {
                 Intake2.setPower(0);
             }
 
+
+
             // --------- BACKUP Button for Transfer from Intake to shooter ----------
             // dpad_up and dpad_down to toggle the transfer servo
             // servo initial position down
@@ -138,6 +171,8 @@ public class TeleOp1 extends LinearOpMode {
                 Transfer.setPosition(servoExtendedPos);
             }
 
+
+
             // --------- Control motors for shooter ----------
             // Left_bumper turn on (click once) and off (click again) motors at fastRPM (for shooting from far)
             // Right_bumper turn on (click once) and off (click again) motors at slowRPM (for shooting from closeby)
@@ -146,7 +181,6 @@ public class TeleOp1 extends LinearOpMode {
             if (leftBumper && lastleftBumper) {
                 shooterOn = !shooterOn;
             }
-
             lastleftBumper = leftBumper;
 
             boolean rightBumper = gamepad1.right_bumper;
@@ -154,33 +188,28 @@ public class TeleOp1 extends LinearOpMode {
             if (rightBumper && lastrightBumper) {
                 shooterOn = !shooterOn;
             }
-
             lastrightBumper = rightBumper;
 
-//            if (shooterOn) {
-//                shooterMotor.setPower(0.8);
-//                shooterMotor1.setPower(0.8);
-//            } else {
-//                shooterMotor.setPower(0);
-//                shooterMotor1.setPower(0);
-//            }
-             if (gamepad1.left_bumper) {
-                 targetRPM = fastRPM;
-                 sleep(200); // debounce
-             } else if (gamepad1.right_bumper) {
-                 targetRPM = slowRPM;
-                 sleep(200);
-             }
 
-             //Clamp RPM
-             targetRPM = Math.max(MIN_RPM, Math.min(MAX_RPM, targetRPM));
+            if (gamepad1.left_bumper) {
+                targetRPM = fastRPM;
+                sleep(200); // debounce
+            } else if (gamepad1.right_bumper) {
+                targetRPM = slowRPM;
+                sleep(200);
+            }
+
+            // Clamp RPM
+            targetRPM = Math.max(MIN_RPM, Math.min(MAX_RPM, targetRPM));
 
             // Convert RPM to ticks per second (GoBilda 312RPM motor = 537.7 ticks/rev)
-            double ticksPerSec = targetRPM;// * 537.7) / 60.0;
+            double ticksPerSec = targetRPM; // * 537.7) / 60.0;
 
             // Set velocity
             shooterMotor.setVelocity(ticksPerSec);
             shooterMotor1.setVelocity(ticksPerSec);
+
+
 
             // -------- REVERSE Intake direction to spit out ball --------
             // Gamepad1.cross button click once to reserver intake if intake is off
@@ -190,6 +219,9 @@ public class TeleOp1 extends LinearOpMode {
                 Intake1.setPower(-1.0);
                 Intake2.setPower(-1.0);
             }
+
+
+
             // --------- MAIN Transfer code: Transfer Macro ----------
             // Gamepad1.square button initiates the transfer process by first turn off intake, then turn on transfer servo
             if (gamepad1.square) {
@@ -221,20 +253,18 @@ public class TeleOp1 extends LinearOpMode {
             }
 
 
+
             // --------- TELEMETRY for driving and shooter calculation ----------
             telemetry.addData("Intake On", intakeOn);
             telemetry.addData("Shooter On", shooterOn);
             telemetry.addData("Servo Position", Transfer.getPosition());
+            telemetry.addData("Turntable Pos", turntablePos);
             telemetry.addData("Target RPM", targetRPM);
             telemetry.addData("Actual Velocity (ticks/s)", shooterMotor.getVelocity());
-            telemetry.addData("Actual RPM", (shooterMotor.getVelocity())); // * 60) / 537.7);
-            telemetry.addData("Target RPM", targetRPM);
+            telemetry.addData("Actual RPM", (shooterMotor.getVelocity()));
             telemetry.addData("Actual Velocity (ticks/s)", shooterMotor1.getVelocity());
-            telemetry.addData("Actual RPM", (shooterMotor1.getVelocity()));// * 60) / 537.7);
+            telemetry.addData("Actual RPM", (shooterMotor1.getVelocity()));
             telemetry.update();
         }
     }
 }
-
-
-
