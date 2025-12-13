@@ -39,7 +39,7 @@ public class TeleOp1 extends LinearOpMode {
     private final double servoExtendedPos = 0.0;
     private final double ServoStart = 0.5;
 
-    private final double turntableStart = 0.38;
+    private final double turntableStart = 0.5;
 
     // ---------- Turntable increment ----------
     private double turntablePos = turntableStart;
@@ -53,8 +53,8 @@ public class TeleOp1 extends LinearOpMode {
     private double targetRPM = 0;
     private static final double MAX_RPM = 6000;
     private static final double MIN_RPM = 0;
-    private final double fastRPM = 3000;
-    private final double slowRPM = 1620;
+    private final double fastRPM = 3400;
+    private final double slowRPM = 2900;
 
     // goBILDA 6000RPM Yellow Jacket (1:1) encoder: 28 ticks per output revolution
     private static final double TICKS_PER_REV = 28.0;
