@@ -39,7 +39,7 @@ public class TeleOp1 extends LinearOpMode {
     private final double servoExtendedPos = 0.0;
     private final double ServoStart = 0.5;
 
-    private final double turntableStart = 0.1;
+    private final double turntableStart = 0.38;
 
     // ---------- Turntable increment ----------
     private double turntablePos = turntableStart;
@@ -188,7 +188,7 @@ public class TeleOp1 extends LinearOpMode {
                 // Stop intake immediately (regardless of toggle)
                 Intake1.setPower(-0.5);
                 Intake2.setPower(-0.5);
-                sleep(500);
+                sleep(200);
                 Intake1.setPower(0);
                 Intake2.setPower(0);
                 transferBlocker.setPosition(0.65);
