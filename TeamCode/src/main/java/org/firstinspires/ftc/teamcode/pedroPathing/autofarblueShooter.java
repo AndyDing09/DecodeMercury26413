@@ -45,7 +45,7 @@ public class autofarblueShooter extends LinearOpMode {
     // Shooter constants (same as your TeleOp)
     // =======================
     private static final double TICKS_PER_REV = 28.0; // goBILDA 6000rpm YJ encoder
-    private final double fastRPM = 3400;
+    private final double fastRPM = 3350;
     private final double slowRPM = 3000;
 
     // =======================
@@ -210,7 +210,7 @@ public class autofarblueShooter extends LinearOpMode {
 
             case 2:
                 // Wait for spin-up, then fire preload (adjust count/timing!)
-                if (actionTimer.getElapsedTimeSeconds() > 1.8) {
+                if (actionTimer.getElapsedTimeSeconds() > 2.5) {
                     transferBlocker.setPosition(0.65);
                     Transfer.setPosition(servoExtendedPos);
                     sleep(500);
@@ -219,7 +219,7 @@ public class autofarblueShooter extends LinearOpMode {
                     sleep(200);
                     Intake1.setPower(1);
                     Intake2.setPower(1);
-                    sleep(500);
+                    sleep(1500);
                     shootBurst(3);
                     setState(3);
                 }
@@ -370,7 +370,7 @@ public class autofarblueShooter extends LinearOpMode {
             sleep(200);
             Intake1.setPower(1);
             Intake2.setPower(1);
-            sleep(500);
+            sleep(2000);
         }
     }
 }

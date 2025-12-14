@@ -20,8 +20,8 @@ import com.qualcomm.robotcore.hardware.Servo;
 // which provides Constants.createFollower(hardwareMap) (common pattern in examples) :contentReference[oaicite:2]{index=2}
 
 
-@Autonomous(name = "autofarredShooter", group = "Auto")
-public class autofarredShooter extends LinearOpMode {
+@Autonomous(name = "autocloseblueShooterr", group = "Auto")
+public class autocloseblueShooter extends LinearOpMode {
 
     // =======================
     // Hardware (same names as your TeleOp)
@@ -39,13 +39,13 @@ public class autofarredShooter extends LinearOpMode {
     private final double ServoStart = 0.5;     // blocker "open" (your start)
     private final double blockerClosed = 0.65; // blocker "closed" (your code uses 0.65)
 
-    private final double turntableStart = 0.575;
+    private final double turntableStart = 0.5;
 
     // =======================
     // Shooter constants (same as your TeleOp)
     // =======================
     private static final double TICKS_PER_REV = 28.0; // goBILDA 6000rpm YJ encoder
-    private final double fastRPM = 3350;
+    private final double fastRPM = 2850;
     private final double slowRPM = 3000;
 
     // =======================
@@ -58,11 +58,12 @@ public class autofarredShooter extends LinearOpMode {
     // FTC field coords: origin (0,0) is field center. Units are inches in most FTC path libs :contentReference[oaicite:3]{index=3}
     // You said: "start from starting zone right next to the far shooting area"
     // Put the robot center where it starts, heading pointing where the robot faces.
-    private final Pose startPose = new Pose(64, 8, Math.toRadians(90)); // <-- CHANGE THIS
-    private final Pose shootPose = new Pose(64, 8, Math.toRadians(90)); // <-- CHANGE THIS (aimed at far target)
-    private final Pose pickupPose1 = new Pose(144, 8, Math.toRadians(-180)); // <-- CHANGE THIS (first pickup)
-    private final Pose pickupPose2 = new Pose(-24, -35, Math.toRadians(-180)); // <-- CHANGE THIS (second pickup)
-    private final Pose parkPose = new Pose(-55, -58, Math.toRadians(90)); // <-- CHANGE THIS (park)
+    private final Pose startPose   = new Pose(  24, 120, Math.toRadians( 135)); // <-- CHANGE THIS
+    private final Pose shootPose   = new Pose(  49, 95, Math.toRadians(135)); // <-- CHANGE THIS (aimed at far target)
+    private final Pose pickupPose1 = new Pose(  49, 72, Math.toRadians(90)); // <-- CHANGE THIS (first pickup)
+    //private final Pose pickupPose1_5 = newPose
+    private final Pose pickupPose2 = new Pose(  24, -35, Math.toRadians(180)); // <-- CHANGE THIS (second pickup)
+    private final Pose parkPose    = new Pose(  55, -58, Math.toRadians( 90)); // <-- CHANGE THIS (park)
 
     // Paths
     private Path toShoot;
@@ -88,13 +89,13 @@ public class autofarredShooter extends LinearOpMode {
         Transfer = hardwareMap.servo.get("Transfer");
         transferBlocker = hardwareMap.servo.get("transferBlocker");
 
-        shooterMotor = hardwareMap.get(DcMotorEx.class, "Shooter");
+        shooterMotor  = hardwareMap.get(DcMotorEx.class, "Shooter");
         shooterMotor1 = hardwareMap.get(DcMotorEx.class, "Shooter1");
 
-        frontLeftDrive = hardwareMap.get(DcMotor.class, "front_left_drive");
-        backLeftDrive = hardwareMap.get(DcMotor.class, "back_left_drive");
+        frontLeftDrive  = hardwareMap.get(DcMotor.class, "front_left_drive");
+        backLeftDrive   = hardwareMap.get(DcMotor.class, "back_left_drive");
         frontRightDrive = hardwareMap.get(DcMotor.class, "front_right_drive");
-        backRightDrive = hardwareMap.get(DcMotor.class, "back_right_drive");
+        backRightDrive  = hardwareMap.get(DcMotor.class, "back_right_drive");
 
         TurnTable2 = hardwareMap.servo.get("TurnTable");
 
@@ -191,7 +192,8 @@ public class autofarredShooter extends LinearOpMode {
 
             case 0:
                 // Drive to shooting pose
-                //follower.followPath(toShoot);
+                setShooterRPM(fastRPM);
+                follower.followPath(toShoot);
                 setState(1);
                 break;
 
@@ -199,9 +201,8 @@ public class autofarredShooter extends LinearOpMode {
                 // Wait until arrive, then shoot preload
                 if (!follower.isBusy()) {
                     // Spin up
-                    setShooterRPM(fastRPM);
                     transferBlocker.setPosition(ServoStart); // allow feeding
-                    //sleep(200);
+                    //sleep(500);
                     actionTimer.resetTimer();
                     setState(2);
                 }
@@ -219,7 +220,7 @@ public class autofarredShooter extends LinearOpMode {
                     Intake1.setPower(1);
                     Intake2.setPower(1);
                     sleep(1500);
-                    shootBurst(3); // <-- CHANGE to how many you actually have preloaded
+                    shootBurst(3);
                     setState(3);
                 }
                 break;
@@ -235,6 +236,8 @@ public class autofarredShooter extends LinearOpMode {
                 if (!follower.isBusy()) {
                     // Give intake a moment to finish pulling in (tune)
                     actionTimer.resetTimer();
+                    shooterMotor.setPower(0);
+                    shooterMotor1.setPower(0);
                     setState(5);
                 }
                 break;
@@ -257,12 +260,7 @@ public class autofarredShooter extends LinearOpMode {
 
             case 7:
                 if (actionTimer.getElapsedTimeSeconds() > 0.6) {
-                    Intake1.setPower(1);
-                    Intake2.setPower(1);
-                    shootBurst(2); // <-- CHANGE to how many you actually have preloaded
-                    sleep(100);
-                    shootBurst(1); // <-- CHANGE to how many you actually have preloaded
-                    setState(3);
+                    shootBurst(3); // <-- tune to how many you collected
                     setState(8);
                 }
                 break;
@@ -374,8 +372,5 @@ public class autofarredShooter extends LinearOpMode {
             Intake2.setPower(1);
             sleep(2000);
         }
-            }
-        }
-
-
-
+    }
+}
