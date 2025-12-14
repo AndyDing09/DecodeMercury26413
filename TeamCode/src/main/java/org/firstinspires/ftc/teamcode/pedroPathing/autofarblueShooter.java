@@ -202,8 +202,6 @@ public class autofarblueShooter extends LinearOpMode {
                     // Spin up
                     setShooterRPM(fastRPM);
                     transferBlocker.setPosition(ServoStart); // allow feeding
-                    Intake1.setPower(1);
-                    Intake2.setPower(1);
                     //sleep(500);
                     actionTimer.resetTimer();
                     setState(2);
@@ -212,7 +210,7 @@ public class autofarblueShooter extends LinearOpMode {
 
             case 2:
                 // Wait for spin-up, then fire preload (adjust count/timing!)
-                if (actionTimer.getElapsedTimeSeconds() > 0.8) {
+                if (actionTimer.getElapsedTimeSeconds() > 1.8) {
                     transferBlocker.setPosition(0.65);
                     Transfer.setPosition(servoExtendedPos);
                     sleep(500);
@@ -222,6 +220,8 @@ public class autofarblueShooter extends LinearOpMode {
                     Intake1.setPower(1);
                     Intake2.setPower(1);
                     sleep(500);
+                    shootBurst(3);
+                    setState(3);
                 }
                 break;
 

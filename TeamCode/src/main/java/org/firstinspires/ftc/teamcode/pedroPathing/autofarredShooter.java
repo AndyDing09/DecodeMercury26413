@@ -209,7 +209,7 @@ public class autofarredShooter extends LinearOpMode {
 
             case 2:
                 // Wait for spin-up, then fire preload (adjust count/timing!)
-                if (actionTimer.getElapsedTimeSeconds() > 0.8) {
+                if (actionTimer.getElapsedTimeSeconds() > 1.8) {
                     transferBlocker.setPosition(0.65);
                     Transfer.setPosition(servoExtendedPos);
                     sleep(500);
