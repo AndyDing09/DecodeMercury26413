@@ -45,7 +45,7 @@ public class autofarblueShooter extends LinearOpMode {
     // Shooter constants (same as your TeleOp)
     // =======================
     private static final double TICKS_PER_REV = 28.0; // goBILDA 6000rpm YJ encoder
-    private final double fastRPM = 3100;
+    private final double fastRPM = 3400;
     private final double slowRPM = 3000;
 
     // =======================
@@ -213,12 +213,15 @@ public class autofarblueShooter extends LinearOpMode {
             case 2:
                 // Wait for spin-up, then fire preload (adjust count/timing!)
                 if (actionTimer.getElapsedTimeSeconds() > 0.8) {
-                    shootBurst(1); // <-- CHANGE to how many you actually have preloaded
-                    sleep(1000);
-                    shootBurst(1); // <-- CHANGE to how many you actually have preloaded
-                    sleep(1000);
-                    shootBurst(1); // <-- CHANGE to how many you actually have preloaded
-                    setState(3);
+                    transferBlocker.setPosition(0.65);
+                    Transfer.setPosition(servoExtendedPos);
+                    sleep(500);
+                    Transfer.setPosition(servoHome);
+                    transferBlocker.setPosition(ServoStart);
+                    sleep(200);
+                    Intake1.setPower(1);
+                    Intake2.setPower(1);
+                    sleep(500);
                 }
                 break;
 
@@ -354,9 +357,9 @@ public class autofarblueShooter extends LinearOpMode {
     private void shootBurst(int count) {
         for (int i = 0; i < count && opModeIsActive(); i++) {
             // briefly “anti-jam” like your code
-            /*Intake1.setPower(-0.5);
+            Intake1.setPower(-0.5);
             Intake2.setPower(-0.5);
-            sleep(200);*/
+            sleep(200);
             Intake1.setPower(0);
             Intake2.setPower(0);
             transferBlocker.setPosition(0.65);

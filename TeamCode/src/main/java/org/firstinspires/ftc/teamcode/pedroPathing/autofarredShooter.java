@@ -45,7 +45,7 @@ public class autofarredShooter extends LinearOpMode {
     // Shooter constants (same as your TeleOp)
     // =======================
     private static final double TICKS_PER_REV = 28.0; // goBILDA 6000rpm YJ encoder
-    private final double fastRPM = 3000;
+    private final double fastRPM = 3400;
     private final double slowRPM = 3000;
 
     // =======================
@@ -58,11 +58,11 @@ public class autofarredShooter extends LinearOpMode {
     // FTC field coords: origin (0,0) is field center. Units are inches in most FTC path libs :contentReference[oaicite:3]{index=3}
     // You said: "start from starting zone right next to the far shooting area"
     // Put the robot center where it starts, heading pointing where the robot faces.
-    private final Pose startPose   = new Pose(  64, 8, Math.toRadians(90)); // <-- CHANGE THIS
-    private final Pose shootPose   = new Pose(  64, 8, Math.toRadians(90)); // <-- CHANGE THIS (aimed at far target)
-    private final Pose pickupPose1 = new Pose(  144, 8, Math.toRadians(-180)); // <-- CHANGE THIS (first pickup)
-    private final Pose pickupPose2 = new Pose(  -24, -35, Math.toRadians(-180)); // <-- CHANGE THIS (second pickup)
-    private final Pose parkPose    = new Pose(  -55, -58, Math.toRadians(90)); // <-- CHANGE THIS (park)
+    private final Pose startPose = new Pose(64, 8, Math.toRadians(90)); // <-- CHANGE THIS
+    private final Pose shootPose = new Pose(64, 8, Math.toRadians(90)); // <-- CHANGE THIS (aimed at far target)
+    private final Pose pickupPose1 = new Pose(144, 8, Math.toRadians(-180)); // <-- CHANGE THIS (first pickup)
+    private final Pose pickupPose2 = new Pose(-24, -35, Math.toRadians(-180)); // <-- CHANGE THIS (second pickup)
+    private final Pose parkPose = new Pose(-55, -58, Math.toRadians(90)); // <-- CHANGE THIS (park)
 
     // Paths
     private Path toShoot;
@@ -88,13 +88,13 @@ public class autofarredShooter extends LinearOpMode {
         Transfer = hardwareMap.servo.get("Transfer");
         transferBlocker = hardwareMap.servo.get("transferBlocker");
 
-        shooterMotor  = hardwareMap.get(DcMotorEx.class, "Shooter");
+        shooterMotor = hardwareMap.get(DcMotorEx.class, "Shooter");
         shooterMotor1 = hardwareMap.get(DcMotorEx.class, "Shooter1");
 
-        frontLeftDrive  = hardwareMap.get(DcMotor.class, "front_left_drive");
-        backLeftDrive   = hardwareMap.get(DcMotor.class, "back_left_drive");
+        frontLeftDrive = hardwareMap.get(DcMotor.class, "front_left_drive");
+        backLeftDrive = hardwareMap.get(DcMotor.class, "back_left_drive");
         frontRightDrive = hardwareMap.get(DcMotor.class, "front_right_drive");
-        backRightDrive  = hardwareMap.get(DcMotor.class, "back_right_drive");
+        backRightDrive = hardwareMap.get(DcMotor.class, "back_right_drive");
 
         TurnTable2 = hardwareMap.servo.get("TurnTable");
 
@@ -210,11 +210,16 @@ public class autofarredShooter extends LinearOpMode {
             case 2:
                 // Wait for spin-up, then fire preload (adjust count/timing!)
                 if (actionTimer.getElapsedTimeSeconds() > 0.8) {
-                    shootBurst(1); // <-- CHANGE to how many you actually have preloaded
-                    sleep(1000);
-                    shootBurst(1); // <-- CHANGE to how many you actually have preloaded
-                    sleep(1000);
-                    shootBurst(1); // <-- CHANGE to how many you actually have preloaded
+                    transferBlocker.setPosition(0.65);
+                    Transfer.setPosition(servoExtendedPos);
+                    sleep(500);
+                    Transfer.setPosition(servoHome);
+                    transferBlocker.setPosition(ServoStart);
+                    sleep(200);
+                    Intake1.setPower(1);
+                    Intake2.setPower(1);
+                    sleep(500);
+                    shootBurst(3); // <-- CHANGE to how many you actually have preloaded
                     setState(3);
                 }
                 break;
@@ -354,9 +359,9 @@ public class autofarredShooter extends LinearOpMode {
     private void shootBurst(int count) {
         for (int i = 0; i < count && opModeIsActive(); i++) {
             // briefly “anti-jam” like your code
-            /*Intake1.setPower(-0.5);
+            Intake1.setPower(-0.5);
             Intake2.setPower(-0.5);
-            sleep(200);*/
+            sleep(200);
             Intake1.setPower(0);
             Intake2.setPower(0);
             transferBlocker.setPosition(0.65);
@@ -369,6 +374,8 @@ public class autofarredShooter extends LinearOpMode {
             Intake2.setPower(1);
             sleep(500);
         }
-    }
-}
+            }
+        }
+
+
 
