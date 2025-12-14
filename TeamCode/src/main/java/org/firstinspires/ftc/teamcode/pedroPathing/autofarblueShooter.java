@@ -45,7 +45,7 @@ public class autofarblueShooter extends LinearOpMode {
     // Shooter constants (same as your TeleOp)
     // =======================
     private static final double TICKS_PER_REV = 28.0; // goBILDA 6000rpm YJ encoder
-    private final double fastRPM = 3350;
+    private final double fastRPM = 3550;
     private final double slowRPM = 3000;
 
     // =======================
@@ -60,7 +60,7 @@ public class autofarblueShooter extends LinearOpMode {
     // Put the robot center where it starts, heading pointing where the robot faces.
     private final Pose startPose   = new Pose(  63, 8, Math.toRadians( 90)); // <-- CHANGE THIS
     private final Pose shootPose   = new Pose(  63, 8, Math.toRadians( 90)); // <-- CHANGE THIS (aimed at far target)
-    private final Pose pickupPose1 = new Pose(  10, 8, Math.toRadians(180)); // <-- CHANGE THIS (first pickup)
+    private final Pose pickupPose1 = new Pose(  40, 8, Math.toRadians(90)); // <-- CHANGE THIS (first pickup)
     //private final Pose pickupPose1_5 = newPose
     private final Pose pickupPose2 = new Pose(  24, -35, Math.toRadians(180)); // <-- CHANGE THIS (second pickup)
     private final Pose parkPose    = new Pose(  55, -58, Math.toRadians( 90)); // <-- CHANGE THIS (park)
