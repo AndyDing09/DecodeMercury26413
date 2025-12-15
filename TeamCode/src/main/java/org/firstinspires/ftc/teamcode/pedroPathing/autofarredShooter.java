@@ -45,7 +45,7 @@ public class autofarredShooter extends LinearOpMode {
     // Shooter constants (same as your TeleOp)
     // =======================
     private static final double TICKS_PER_REV = 28.0; // goBILDA 6000rpm YJ encoder
-    private final double fastRPM = 3550;
+    private final double fastRPM = 3500;
     private final double slowRPM = 3000;
 
     // =======================

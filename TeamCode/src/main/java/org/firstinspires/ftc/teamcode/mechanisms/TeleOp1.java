@@ -53,7 +53,7 @@ public class TeleOp1 extends LinearOpMode {
     private double targetRPM = 0;
     private static final double MAX_RPM = 6000;
     private static final double MIN_RPM = 0;
-    private final double fastRPM = 3400;
+    private final double fastRPM = 3350;
     private final double slowRPM = 2900;
 
     // goBILDA 6000RPM Yellow Jacket (1:1) encoder: 28 ticks per output revolution
