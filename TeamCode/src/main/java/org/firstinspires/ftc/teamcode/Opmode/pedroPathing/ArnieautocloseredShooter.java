@@ -75,11 +75,11 @@ public class ArnieautocloseredShooter extends LinearOpMode {
     // ====== EDIT THESE POSES FOR YOUR START/ALLIANCE ======
     // FTC field coords: origin (0,0) is bottom left. Units are inches in most FTC path libs :contentReference[oaicite:3]{index=3}
 
-    private final Pose startPose   = new Pose(  120, 120, Math.toRadians( 45));
-    private final Pose shootPose   = new Pose(  95, 95, Math.toRadians( 45));
-    private final Pose pickupPose1 = new Pose(  95, 72, Math.toRadians(90));
-    private final Pose pickupPose2 = new Pose(  24, -35, Math.toRadians(180));
-    private final Pose parkPose    = new Pose(  55, -58, Math.toRadians( 90));
+    private final Pose startPose   = new Pose(120, 120, Math.toRadians(45));
+    private final Pose shootPose   = new Pose(96, 96, Math.toRadians(45));
+    private final Pose pickupPose1 = new Pose(96, 84, Math.toRadians(90));
+    private final Pose pickupPose2 = new Pose(24, -35, Math.toRadians(180));
+    private final Pose parkPose    = new Pose(55, -58, Math.toRadians(90));
 
     // Paths
     private Path toShoot;
