@@ -29,9 +29,9 @@ public class autofarblueShooter extends LinearOpMode {
     // Hardware (same names as your TeleOp)
     // =======================
     private DcMotor frontLeftDrive, backLeftDrive, frontRightDrive, backRightDrive;
-    private DcMotor Intake1, Intake2;
-    private DcMotorEx shooterMotor, shooterMotor1;
-    private Servo Transfer, TurnTable2, transferBlocker;
+    private DcMotor frontIntake, middleTransfer;
+    private DcMotorEx shooter, shooter1;
+    private Servo TurnTable2, turntable3, Gate;
 
     // =======================
     // Servos (same as your TeleOp)
@@ -47,8 +47,8 @@ public class autofarblueShooter extends LinearOpMode {
     // Shooter constants (same as your TeleOp)
     // =======================
     private static final double TICKS_PER_REV = 28.0; // goBILDA 6000rpm YJ encoder
-    private final double fastRPM = 3500;
-    private final double slowRPM = 3000;
+    private final double fastRPM = 325;
+    private final double slowRPM = 265;
 
     // =======================
     // PedroPathing
@@ -86,40 +86,41 @@ public class autofarblueShooter extends LinearOpMode {
         // =======================
         // Hardware init (copied from your TeleOp)
         // =======================
-        Intake1 = hardwareMap.dcMotor.get("Intake1");
-        Intake2 = hardwareMap.dcMotor.get("Intake2");
-        Transfer = hardwareMap.servo.get("Transfer");
-        transferBlocker = hardwareMap.servo.get("transferBlocker");
+        frontIntake = hardwareMap.dcMotor.get("frontIntake");
+        middleTransfer = hardwareMap.dcMotor.get("middleTransfer");
+        Gate = hardwareMap.servo.get("Gate");
 
-        shooterMotor  = hardwareMap.get(DcMotorEx.class, "Shooter");
-        shooterMotor1 = hardwareMap.get(DcMotorEx.class, "Shooter1");
+        shooter = hardwareMap.get(DcMotorEx.class, "Shooter");
+        shooter1 = hardwareMap.get(DcMotorEx.class, "Shooter1");
 
-        frontLeftDrive  = hardwareMap.get(DcMotor.class, "front_left_drive");
-        backLeftDrive   = hardwareMap.get(DcMotor.class, "back_left_drive");
+        frontLeftDrive = hardwareMap.get(DcMotor.class, "front_left_drive");
+        backLeftDrive = hardwareMap.get(DcMotor.class, "back_left_drive");
         frontRightDrive = hardwareMap.get(DcMotor.class, "front_right_drive");
-        backRightDrive  = hardwareMap.get(DcMotor.class, "back_right_drive");
+        backRightDrive = hardwareMap.get(DcMotor.class, "back_right_drive");
 
         TurnTable2 = hardwareMap.servo.get("TurnTable");
 
-        Intake2.setDirection(DcMotor.Direction.REVERSE);
 
         frontLeftDrive.setDirection(DcMotor.Direction.REVERSE);
         backLeftDrive.setDirection(DcMotor.Direction.REVERSE);
         frontRightDrive.setDirection(DcMotor.Direction.FORWARD);
         backRightDrive.setDirection(DcMotor.Direction.FORWARD);
 
-        shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        middleTransfer.setDirection(DcMotor.Direction.FORWARD);
+        frontIntake.setDirection(DcMotorSimple.Direction.REVERSE);
 
-        shooterMotor1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        shooterMotor1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        shooter.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooter1.setDirection(DcMotorSimple.Direction.FORWARD);
 
-        shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooter1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        shooter.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        shooter1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         // shooterMotor1.setDirection(DcMotorSimple.Direction.FORWARD); // set if needed
 
-        Transfer.setPosition(servoHome);
         TurnTable2.setPosition(turntableStart);
-        transferBlocker.setPosition(ServoStart);
+        Gate.setPosition(0.2);
 
         // =======================
         // Pedro init (common pattern) :contentReference[oaicite:4]{index=4}
@@ -203,7 +204,7 @@ public class autofarblueShooter extends LinearOpMode {
                 if (!follower.isBusy()) {
                     // Spin up
                     setShooterRPM(fastRPM);
-                    transferBlocker.setPosition(ServoStart); // allow feeding
+                    Gate.setPosition(0.09); // allow feeding
                     //sleep(500);
                     actionTimer.resetTimer();
                     setState(2);
@@ -213,16 +214,10 @@ public class autofarblueShooter extends LinearOpMode {
             case 2:
                 // Wait for spin-up, then fire preload (adjust count/timing!)
                 if (actionTimer.getElapsedTimeSeconds() > 2.5) {
-                    transferBlocker.setPosition(0.65);
-                    Transfer.setPosition(servoExtendedPos);
-                    sleep(500);
-                    Transfer.setPosition(servoHome);
-                    transferBlocker.setPosition(ServoStart);
-                    sleep(200);
-                    Intake1.setPower(1);
-                    Intake2.setPower(1);
-                    sleep(1500);
-                    shootBurst(3);
+                    Gate.setPosition(0.09);
+                    frontIntake.setPower(-1);
+                    middleTransfer.setPower(-0.7);
+
                     setState(3);
                 }
                 break;
@@ -238,8 +233,8 @@ public class autofarblueShooter extends LinearOpMode {
                 if (!follower.isBusy()) {
                     // Give intake a moment to finish pulling in (tune)
                     actionTimer.resetTimer();
-                    shooterMotor.setPower(0);
-                    shooterMotor1.setPower(0);
+                    shooter.setPower(0);
+                    shooter1.setPower(0);
                     setState(5);
                 }
                 break;
@@ -335,44 +330,23 @@ public class autofarblueShooter extends LinearOpMode {
     // =======================
     private void setShooterRPM(double rpm) {
         double ticksPerSec = (rpm * TICKS_PER_REV) / 60.0;
-        shooterMotor.setVelocity(ticksPerSec);
-        shooterMotor1.setVelocity(ticksPerSec);
+        shooter.setVelocity(ticksPerSec);
+        shooter1.setVelocity(ticksPerSec);
     }
 
     private void stopShooter() {
-        shooterMotor.setVelocity(0);
-        shooterMotor1.setVelocity(0);
+        shooter.setVelocity(0);
+        shooter1.setVelocity(0);
     }
 
     private void startIntake() {
-        Intake1.setPower(1.0);
-        Intake2.setPower(1.0);
+        frontIntake.setPower(-1);
     }
 
     private void stopIntake() {
-        Intake1.setPower(0.0);
-        Intake2.setPower(0.0);
+        frontIntake.setPower(0);
     }
 
-    // Fires N balls by pulsing the transfer servo like your Square macro.
-    // Tune delays to your mechanism.
-    private void shootBurst(int count) {
-        for (int i = 0; i < count && opModeIsActive(); i++) {
-            // briefly “anti-jam” like your code
-            Intake1.setPower(-0.5);
-            Intake2.setPower(-0.5);
-            sleep(200);
-            Intake1.setPower(0);
-            Intake2.setPower(0);
-            transferBlocker.setPosition(0.65);
-            Transfer.setPosition(servoExtendedPos);
-            sleep(500);
-            Transfer.setPosition(servoHome);
-            transferBlocker.setPosition(ServoStart);
-            sleep(200);
-            Intake1.setPower(1);
-            Intake2.setPower(1);
-            sleep(2000);
-        }
-    }
+
+
 }
