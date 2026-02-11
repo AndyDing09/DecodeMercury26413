@@ -26,7 +26,7 @@ import static java.lang.Math.min;
 
 
 @Autonomous(name = "autocloseredShooter - Ramp", group = "Auto")
-public class ArnieautocloseredShooter extends LinearOpMode {
+public class Arnieautoclosered extends LinearOpMode {
 
     // =======================
     // Hardware
