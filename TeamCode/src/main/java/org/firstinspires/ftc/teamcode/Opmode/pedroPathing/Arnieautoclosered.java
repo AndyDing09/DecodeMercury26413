@@ -218,7 +218,7 @@ public class Arnieautoclosered extends LinearOpMode {
 
             case 0:
                 // Drive to shooting pose and start spinning up
-                startShooter();
+                // startShooter();                    PATH TESTING
                 follower.followPath(toShoot);
                 setState(1);
                 break;
@@ -235,14 +235,14 @@ public class Arnieautoclosered extends LinearOpMode {
                 // Wait for shooter to reach speed (ramp will auto-shoot after 2s)
                 // After 6 seconds, ramp cycle completes automatically
                 if (actionTimer.getElapsedTimeSeconds() > 6.5) {
-                    stopShooter();
+                    // stopShooter();                    PATH TESTING
                     setState(3);
                 }
                 break;
 
             case 3:
                 // Go pick up first batch while intaking
-                startIntake();
+                // startIntake();                     PATH TESTING
                 follower.followPath(toPickup1, true);
                 setState(4);
                 break;
@@ -258,7 +258,7 @@ public class Arnieautoclosered extends LinearOpMode {
             case 5:
                 // Give intake time to collect
                 if (actionTimer.getElapsedTimeSeconds() > 1.0) {
-                    stopIntake();
+                    // stopIntake();                    PATH TESTING
                     follower.followPath(backToShoot1, true);
                     setState(6);
                 }
@@ -267,7 +267,7 @@ public class Arnieautoclosered extends LinearOpMode {
             case 6:
                 // wait to shoot
                 if (!follower.isBusy()) {
-                    startShooter();
+                    // startShooter();                    PATH TESTING
                     actionTimer.resetTimer();
                     setState(7);
                 }
@@ -276,14 +276,14 @@ public class Arnieautoclosered extends LinearOpMode {
             case 7:
                 // Wait for second shooting cycle to complete
                 if (actionTimer.getElapsedTimeSeconds() > 6.5) {
-                    stopShooter();
+                    // stopShooter();                    PATH TESTING
                     setState(8);
                 }
                 break;
 
             case 8:
                 // Pickup second batch
-                startIntake();
+                // startIntake();                    PATH TESTING
                 follower.followPath(toPickup2, true);
                 setState(9);
                 break;
@@ -297,7 +297,7 @@ public class Arnieautoclosered extends LinearOpMode {
 
             case 10:
                 if (actionTimer.getElapsedTimeSeconds() > 1.0) {
-                    stopIntake();
+                    // stopIntake();                     PATH TESTING
                     follower.followPath(backToShoot2, true);
                     setState(11);
                 }
@@ -305,7 +305,7 @@ public class Arnieautoclosered extends LinearOpMode {
 
             case 11:
                 if (!follower.isBusy()) {
-                    startShooter();
+                    // startShooter();                    PATH TESTING
                     actionTimer.resetTimer();
                     setState(12);
                 }
@@ -314,7 +314,7 @@ public class Arnieautoclosered extends LinearOpMode {
             case 12:
                 // Wait for third shooting cycle to complete
                 if (actionTimer.getElapsedTimeSeconds() > 6.5) {
-                    stopShooter();
+                    // stopShooter();                    PATH TESTING
                     setState(13);
                 }
                 break;
@@ -327,8 +327,8 @@ public class Arnieautoclosered extends LinearOpMode {
 
             case 14:
                 if (!follower.isBusy()) {
-                    stopShooter();
-                    stopIntake();
+                    // stopShooter();                    PATH TESTING
+                    // stopIntake();                    PATH TESTING
                     setState(-1); // Done
                 }
                 break;
