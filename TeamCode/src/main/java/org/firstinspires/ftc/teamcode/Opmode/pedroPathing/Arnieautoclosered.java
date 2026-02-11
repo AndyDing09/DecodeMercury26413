@@ -363,7 +363,7 @@ public class Arnieautoclosered extends LinearOpMode {
             Gate.setPosition(GATE_CLOSED);  // Keep closed during spin-up
         } else if (t < 6) {
             // Ramp up phase - GATE OPENS to allow feeding
-            targetRPM = min(1100 + t * 100, 1600);
+            targetRPM = min(1200 + t * 100, 1600);
             Gate.setPosition(GATE_OPEN);  // NOW open - shooter is up to speed
         } else {
             // Shooting complete
