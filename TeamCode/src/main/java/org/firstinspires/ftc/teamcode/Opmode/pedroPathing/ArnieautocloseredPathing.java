@@ -25,16 +25,13 @@ import static java.lang.Math.min;
 // which provides Constants.createFollower(hardwareMap) (common pattern in examples) :contentReference[oaicite:2]{index=2}
 
 
-@Autonomous(name = "Arnieautoclosered", group = "Auto")
-public class Arnieautoclosered extends LinearOpMode {
+@Autonomous(name = "ArnieautocloseredPathing", group = "Auto")
+public class ArnieautocloseredPathing extends LinearOpMode {
 
     // =======================
     // Hardware
     // =======================
     private DcMotor frontLeftDrive, backLeftDrive, frontRightDrive, backRightDrive;
-    private DcMotor Intake1, Intake2;
-    private DcMotorEx shooterMotor, shooterMotor1;
-    private Servo Transfer, TurnTable2, transferBlocker, Gate;
 
     // =======================
     // Servo Positions
@@ -75,8 +72,8 @@ public class Arnieautoclosered extends LinearOpMode {
     // ====== EDIT THESE POSES FOR YOUR START/ALLIANCE ======
     // FTC field coords: origin (0,0) is bottom left. Units are inches in most FTC path libs :contentReference[oaicite:3]{index=3}
 
-    private final Pose startPose   = new Pose(120, 120, Math.toRadians(45));
-    private final Pose shootPose   = new Pose(96, 96, Math.toRadians(45));
+    private final Pose startPose   = new Pose(124, 124, Math.toRadians(0));
+    private final Pose shootPose   = new Pose(6, 6, Math.toRadians(0));
     private final Pose pickupPose1 = new Pose(96, 84, Math.toRadians(90));
     private final Pose pickupPose2 = new Pose(24, -35, Math.toRadians(180));
     private final Pose parkPose    = new Pose(55, -58, Math.toRadians(90));
@@ -100,47 +97,21 @@ public class Arnieautoclosered extends LinearOpMode {
         // =======================
         // Hardware init
         // =======================
-        Intake1 = hardwareMap.dcMotor.get("Intake1");
-        Intake2 = hardwareMap.dcMotor.get("Intake2");
-        Transfer = hardwareMap.servo.get("Transfer");
-        transferBlocker = hardwareMap.servo.get("transferBlocker");
-        Gate = hardwareMap.servo.get("Gate");  // NEW
-
-        shooterMotor  = hardwareMap.get(DcMotorEx.class, "Shooter");
-        shooterMotor1 = hardwareMap.get(DcMotorEx.class, "Shooter1");
 
         frontLeftDrive  = hardwareMap.get(DcMotor.class, "front_left_drive");
         backLeftDrive   = hardwareMap.get(DcMotor.class, "back_left_drive");
         frontRightDrive = hardwareMap.get(DcMotor.class, "front_right_drive");
         backRightDrive  = hardwareMap.get(DcMotor.class, "back_right_drive");
 
-        TurnTable2 = hardwareMap.servo.get("TurnTable");
-
-        Intake2.setDirection(DcMotor.Direction.REVERSE);
 
         frontLeftDrive.setDirection(DcMotor.Direction.REVERSE);
         backLeftDrive.setDirection(DcMotor.Direction.REVERSE);
         frontRightDrive.setDirection(DcMotor.Direction.FORWARD);
         backRightDrive.setDirection(DcMotor.Direction.FORWARD);
 
-        shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-
-        shooterMotor1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        shooterMotor1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-
-        shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
-
         // Set PIDF coefficients
         PIDFCoefficients pidf = new PIDFCoefficients(P, I, D, F);
-        shooterMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidf);
-        shooterMotor1.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidf);
 
-        // Initial servo positions
-        Transfer.setPosition(servoHome);
-        TurnTable2.setPosition(turntableStart);
-        transferBlocker.setPosition(ServoStart);
-        Gate.setPosition(GATE_CLOSED);  // Start with gate closed
 
         // =======================
         // Pedro init
@@ -163,7 +134,6 @@ public class Arnieautoclosered extends LinearOpMode {
             currentPose = follower.getPose();
 
             updateStateMachine();
-            updateShooter();  // Continuously update shooter based on ramp logic
 
             telemetry.addData("State", state);
             telemetry.addData("X", currentPose.getX());
@@ -174,9 +144,6 @@ public class Arnieautoclosered extends LinearOpMode {
             telemetry.update();
         }
 
-        // Safety stop
-        stopShooter();
-        stopIntake();
     }
 
     private void buildPaths() {
@@ -218,7 +185,6 @@ public class Arnieautoclosered extends LinearOpMode {
 
             case 0:
                 // Drive to shooting pose and start spinning up
-                // startShooter();                    PATH TESTING
                 follower.followPath(toShoot);
                 setState(1);
                 break;
@@ -235,14 +201,12 @@ public class Arnieautoclosered extends LinearOpMode {
                 // Wait for shooter to reach speed (ramp will auto-shoot after 2s)
                 // After 6 seconds, ramp cycle completes automatically
                 if (actionTimer.getElapsedTimeSeconds() > 6.5) {
-                    // stopShooter();                    PATH TESTING
                     setState(3);
                 }
                 break;
 
             case 3:
                 // Go pick up first batch while intaking
-                // startIntake();                     PATH TESTING
                 follower.followPath(toPickup1, true);
                 setState(4);
                 break;
@@ -258,7 +222,6 @@ public class Arnieautoclosered extends LinearOpMode {
             case 5:
                 // Give intake time to collect
                 if (actionTimer.getElapsedTimeSeconds() > 1.0) {
-                    // stopIntake();                    PATH TESTING
                     follower.followPath(backToShoot1, true);
                     setState(6);
                 }
@@ -267,7 +230,6 @@ public class Arnieautoclosered extends LinearOpMode {
             case 6:
                 // wait to shoot
                 if (!follower.isBusy()) {
-                    // startShooter();                    PATH TESTING
                     actionTimer.resetTimer();
                     setState(7);
                 }
@@ -276,14 +238,12 @@ public class Arnieautoclosered extends LinearOpMode {
             case 7:
                 // Wait for second shooting cycle to complete
                 if (actionTimer.getElapsedTimeSeconds() > 6.5) {
-                    // stopShooter();                    PATH TESTING
                     setState(8);
                 }
                 break;
 
             case 8:
                 // Pickup second batch
-                // startIntake();                    PATH TESTING
                 follower.followPath(toPickup2, true);
                 setState(9);
                 break;
@@ -297,7 +257,6 @@ public class Arnieautoclosered extends LinearOpMode {
 
             case 10:
                 if (actionTimer.getElapsedTimeSeconds() > 1.0) {
-                    // stopIntake();                     PATH TESTING
                     follower.followPath(backToShoot2, true);
                     setState(11);
                 }
@@ -305,7 +264,6 @@ public class Arnieautoclosered extends LinearOpMode {
 
             case 11:
                 if (!follower.isBusy()) {
-                    // startShooter();                    PATH TESTING
                     actionTimer.resetTimer();
                     setState(12);
                 }
@@ -314,7 +272,6 @@ public class Arnieautoclosered extends LinearOpMode {
             case 12:
                 // Wait for third shooting cycle to complete
                 if (actionTimer.getElapsedTimeSeconds() > 6.5) {
-                    // stopShooter();                    PATH TESTING
                     setState(13);
                 }
                 break;
@@ -327,8 +284,6 @@ public class Arnieautoclosered extends LinearOpMode {
 
             case 14:
                 if (!follower.isBusy()) {
-                    // stopShooter();                    PATH TESTING
-                    // stopIntake();                    PATH TESTING
                     setState(-1); // Done
                 }
                 break;
@@ -343,57 +298,8 @@ public class Arnieautoclosered extends LinearOpMode {
     // NEW RAMP SHOOTING SYSTEM
     // =======================
 
-    private void startShooter() {
-        shooterActive = true;
-        shootStartTime = getRuntime();
-        Gate.setPosition(GATE_CLOSED);  // Start CLOSED - prevent premature feeding
-    }
 
-    private void updateShooter() {
-        if (!shooterActive) {
-            return;
-        }
 
-        // RAMP LOGIC (from TeleOp fast mode)
-        double t = getRuntime() - shootStartTime;
-
-        if (t < 2) {
-            // Initial spin-up phase - GATE CLOSED
-            targetRPM = 1400;
-            Gate.setPosition(GATE_CLOSED);  // Keep closed during spin-up
-        } else if (t < 6) {
-            // Ramp up phase - GATE OPENS to allow feeding
-            targetRPM = min(1200 + t * 100, 1600);
-            Gate.setPosition(GATE_OPEN);  // NOW open - shooter is up to speed
-        } else {
-            // Shooting complete
-            targetRPM = 0;
-            Gate.setPosition(GATE_CLOSED);  // Close when done
-        }
-
-        // Set shooter velocity
-        double ticksPerSec = (targetRPM * TICKS_PER_REV) / 60.0;
-        shooterMotor.setVelocity(ticksPerSec);
-        shooterMotor1.setVelocity(ticksPerSec);
-    }
-
-    private void stopShooter() {
-        shooterActive = false;
-        targetRPM = 0;
-        shooterMotor.setVelocity(0);
-        shooterMotor1.setVelocity(0);
-        Gate.setPosition(GATE_CLOSED);  // Always close gate when stopping
-    }
-
-    private void startIntake() {
-        Intake1.setPower(1.0);
-        Intake2.setPower(1.0);
-    }
-
-    private void stopIntake() {
-        Intake1.setPower(0.0);
-        Intake2.setPower(0.0);
-    }
 
     private void setState(int newState) {
         state = newState;
