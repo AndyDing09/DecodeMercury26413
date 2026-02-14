@@ -74,9 +74,10 @@ public class ArnieautocloseredPathing extends LinearOpMode {
 
     private final Pose startPose   = new Pose(0, 0, Math.toRadians(45));
     private final Pose shootPose   = new Pose(24, -24, Math.toRadians(45));
-    private final Pose pickupPose1 = new Pose(96, 84, Math.toRadians(90));
-    private final Pose pickupPose2 = new Pose(24, -35, Math.toRadians(180));
-    private final Pose parkPose    = new Pose(55, -58, Math.toRadians(90));
+    private final Pose pickupPose1 = new Pose(12, -36, Math.toRadians(90));
+    private final Pose pickupPose2 = new Pose(12, -60, Math.toRadians(90));
+    private final Pose pickupPose3 = new Pose(12, -84, Math.toRadians(90));
+    private final Pose parkPose    = new Pose(12, -48, Math.toRadians(45));
 
     // Paths
     private Path toShoot;
@@ -84,6 +85,8 @@ public class ArnieautocloseredPathing extends LinearOpMode {
     private PathChain backToShoot1;
     private PathChain toPickup2;
     private PathChain backToShoot2;
+    private PathChain toPickup3;
+    private PathChain backToShoot3;
     private PathChain toPark;
 
     // Timers + state machine
@@ -171,6 +174,17 @@ public class ArnieautocloseredPathing extends LinearOpMode {
         backToShoot2 = follower.pathBuilder()
                 .addPath(new BezierLine(pickupPose2, shootPose))
                 .setLinearHeadingInterpolation(pickupPose2.getHeading(), shootPose.getHeading())
+                .build();
+
+        // Shoot -> pickup 3 -> back to shoot
+        toPickup3 = follower.pathBuilder()
+                .addPath(new BezierLine(shootPose, pickupPose3))
+                .setLinearHeadingInterpolation(shootPose.getHeading(), pickupPose3.getHeading())
+                .build();
+
+        backToShoot3 = follower.pathBuilder()
+                .addPath(new BezierLine(pickupPose3, shootPose))
+                .setLinearHeadingInterpolation(pickupPose3.getHeading(), shootPose.getHeading())
                 .build();
 
         // Shoot -> park
@@ -277,12 +291,46 @@ public class ArnieautocloseredPathing extends LinearOpMode {
                 break;
 
             case 13:
-                // Park
-                follower.followPath(toPark, true);
+                // Pickup third batch
+                follower.followPath(toPickup3, true);
                 setState(14);
                 break;
 
             case 14:
+                if (!follower.isBusy()) {
+                    actionTimer.resetTimer();
+                    setState(15);
+                }
+                break;
+
+            case 15:
+                if (actionTimer.getElapsedTimeSeconds() > 1.0) {
+                    follower.followPath(backToShoot3, true);
+                    setState(16);
+                }
+                break;
+
+            case 16:
+                if (!follower.isBusy()) {
+                    actionTimer.resetTimer();
+                    setState(17);
+                }
+                break;
+
+            case 17:
+                // Wait for fourth shooting cycle to complete
+                if (actionTimer.getElapsedTimeSeconds() > 6.5) {
+                    setState(18);
+                }
+                break;
+
+            case 18:
+                // Park
+                follower.followPath(toPark, true);
+                setState(19);
+                break;
+
+            case 19:
                 if (!follower.isBusy()) {
                     setState(-1); // Done
                 }
