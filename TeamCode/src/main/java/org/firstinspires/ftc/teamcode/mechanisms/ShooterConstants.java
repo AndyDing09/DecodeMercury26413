@@ -1,5 +1,4 @@
-package org.firstinspires.ftc.teamcode.robot.constants;
-
+package org.firstinspires.ftc.teamcode.mechanisms;
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.math.MathFunctions;
