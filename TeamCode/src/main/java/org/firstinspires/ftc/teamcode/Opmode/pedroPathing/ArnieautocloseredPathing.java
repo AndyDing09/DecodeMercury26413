@@ -72,12 +72,16 @@ public class ArnieautocloseredPathing extends LinearOpMode {
     // ====== EDIT THESE POSES FOR YOUR START/ALLIANCE ======
     // FTC field coords: origin (0,0) is start pos. Units are inches in most FTC path libs :contentReference[oaicite:3]{index=3}
 
-    private final Pose startPose   = new Pose(108, 108, Math.toRadians(45));
-    private final Pose shootPose   = new Pose(72, 72, Math.toRadians(45));
-    private final Pose pickupPose1 = new Pose(96, 72, Math.toRadians(90));
-    private final Pose pickupPose2 = new Pose(96, 48, Math.toRadians(90));
-    private final Pose pickupPose3 = new Pose(96, 24, Math.toRadians(90));
-    private final Pose parkPose    = new Pose(96, 60, Math.toRadians(45));
+    private final Pose startPose         = new Pose(120, 120, Math.toRadians(45));
+    private final Pose shootPose         = new Pose(84, 84, Math.toRadians(45));
+    private final Pose pickupPose1       = new Pose(108, 84, Math.toRadians(90));
+    private final Pose pickupPose2       = new Pose(108, 60, Math.toRadians(90));
+    private final Pose pickupPose3       = new Pose(108, 36, Math.toRadians(90));
+    private final Pose PreclearPose      = new Pose(124, 72, Math.toRadians(90));
+    private final Pose clearPose         = new Pose(136, 72, Math.toRadians(90));
+    private final Pose PickfromclearPose = new Pose(134, 56, Math.toRadians(30));
+    private final Pose parkPose          = new Pose(120, 72, Math.toRadians(0));
+
 
     // Paths
     private Path toShoot;
@@ -124,8 +128,7 @@ public class ArnieautocloseredPathing extends LinearOpMode {
 
         buildPaths();
 
-        telemetry.addLine("✅ Ramp Shooter Auto Initialized");
-        telemetry.addLine("CHECK your Pose coordinates before running!");
+        telemetry.addLine("✅ Pathing Initialized");
         telemetry.update();
 
         waitForStart();
@@ -154,18 +157,23 @@ public class ArnieautocloseredPathing extends LinearOpMode {
         toShoot = new Path(new BezierLine(startPose, shootPose));
         toShoot.setLinearHeadingInterpolation(startPose.getHeading(), shootPose.getHeading());
 
-        // Shoot -> pickup 1 -> back to shoot
+        // Shoot --> pickup 2
         toPickup1 = follower.pathBuilder()
-                .addPath(new BezierLine(shootPose, pickupPose1))
-                .setLinearHeadingInterpolation(shootPose.getHeading(), pickupPose1.getHeading())
+                .addPath(new BezierLine(shootPose, pickupPose2))
+                .setLinearHeadingInterpolation(shootPose.getHeading(), pickupPose2.getHeading())
                 .build();
 
+        // pickup 2 --> shoot
         backToShoot1 = follower.pathBuilder()
-                .addPath(new BezierLine(pickupPose1, shootPose))
-                .setLinearHeadingInterpolation(pickupPose1.getHeading(), shootPose.getHeading())
+                .addPath(new BezierLine(pickupPose2, shootPose))
+                .setLinearHeadingInterpolation(pickupPose2.getHeading(), shootPose.getHeading())
                 .build();
 
-        // Shoot -> pickup 2 -> back to shoot
+        /*
+
+        OTHER SHI
+
+        // Shoot -> back to shoot
         toPickup2 = follower.pathBuilder()
                 .addPath(new BezierLine(shootPose, pickupPose2))
                 .setLinearHeadingInterpolation(shootPose.getHeading(), pickupPose2.getHeading())
@@ -186,6 +194,9 @@ public class ArnieautocloseredPathing extends LinearOpMode {
                 .addPath(new BezierLine(pickupPose3, shootPose))
                 .setLinearHeadingInterpolation(pickupPose3.getHeading(), shootPose.getHeading())
                 .build();
+
+
+         */
 
         // Shoot -> park
         toPark = follower.pathBuilder()
@@ -341,10 +352,6 @@ public class ArnieautocloseredPathing extends LinearOpMode {
                 break;
         }
     }
-
-    // =======================
-    // NEW RAMP SHOOTING SYSTEM
-    // =======================
 
 
 
