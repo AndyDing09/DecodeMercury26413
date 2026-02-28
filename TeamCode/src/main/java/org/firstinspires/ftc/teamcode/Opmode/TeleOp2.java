@@ -196,7 +196,7 @@ public class TeleOp2 extends LinearOpMode {
 
                 if (intakeOn) {
                     frontIntake.setPower(-1);
-                    middleTransfer.setPower(-0.75);
+                    middleTransfer.setPower(-1);
                     Intakelift.setPosition(ServoDown);
                 } else {
                     frontIntake.setPower(0);
