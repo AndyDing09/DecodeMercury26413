@@ -40,7 +40,7 @@ public class RapidIntakeFromMarkerTest extends LinearOpMode {
      * Direction to move while intaking.
      * Options: FORWARD, STRAFE_LEFT, STRAFE_RIGHT, NONE
      */
-    private static final DriveDirection DRIVE_DIRECTION = DriveDirection.STRAFE_RIGHT;
+    private static final DriveDirection DRIVE_DIRECTION = DriveDirection.FORWARD;
 
     /** Pause (ms) after resetting the transfer servo before starting intake */
     private static final long TRANSFER_RESET_DELAY_MS = 300;
