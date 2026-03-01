@@ -22,7 +22,7 @@ import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 // which provides Constants.createFollower(hardwareMap) (common pattern in examples) :contentReference[oaicite:2]{index=2}
 
 
-@Autonomous(name = "autocloseredShooterr", group = "Auto")
+@Autonomous(name = "autocloseredShooter", group = "Auto")
 public class autocloseredShooter extends LinearOpMode {
 
     // =======================
