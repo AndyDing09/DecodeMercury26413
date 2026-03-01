@@ -48,8 +48,8 @@ public class RapidIntakeFromMarkerTest extends LinearOpMode {
     // ══════════════════════════════════════════════════════════════
     // SERVO POSITIONS (from Transfe_Intake.java)
     // ══════════════════════════════════════════════════════════════
-    private static final double SERVO_HOME     = 0.075; // blocking / reset position
-    private static final double SERVO_EXTENDED = 0.0;   // open / pass-through position
+    private static final double SERVO_HOME     = 0.5; // transferBlocker start position (TeleOp2: ServoStart)
+    private static final double SERVO_EXTENDED = 0.0; // transferBlocker down position
 
     // ══════════════════════════════════════════════════════════════
     // DRIVE DIRECTION ENUM
@@ -65,8 +65,8 @@ public class RapidIntakeFromMarkerTest extends LinearOpMode {
     // HARDWARE
     // ══════════════════════════════════════════════════════════════
     private DcMotor frontLeftDrive, backLeftDrive, frontRightDrive, backRightDrive;
-    private DcMotor intake1, intake2;
-    private Servo   transfer;
+    private DcMotor middleTransfer;
+    private Servo   transferBlocker;
 
     private ElapsedTime timer = new ElapsedTime();
 
@@ -82,9 +82,8 @@ public class RapidIntakeFromMarkerTest extends LinearOpMode {
         frontRightDrive = hardwareMap.get(DcMotor.class, "front_right_drive");
         backRightDrive  = hardwareMap.get(DcMotor.class, "back_right_drive");
 
-        intake1  = hardwareMap.dcMotor.get("Intake1");
-        intake2  = hardwareMap.dcMotor.get("Intake2");
-        transfer = hardwareMap.servo.get("Transfer");
+        middleTransfer = hardwareMap.get(DcMotor.class, "middleTransfer");
+        transferBlocker = hardwareMap.servo.get("transferBlocker");
 
         // ── Motor directions (matching Transfe_Intake.java & TeleOp2.java) ──
         frontLeftDrive.setDirection(DcMotor.Direction.REVERSE);
@@ -92,7 +91,7 @@ public class RapidIntakeFromMarkerTest extends LinearOpMode {
         frontRightDrive.setDirection(DcMotor.Direction.FORWARD);
         backRightDrive.setDirection(DcMotor.Direction.FORWARD);
 
-        intake2.setDirection(DcMotor.Direction.REVERSE); // mirrors Transfe_Intake.java
+        middleTransfer.setDirection(DcMotor.Direction.FORWARD); // matches TeleOp2
 
         // ── Zero-power behavior ────────────────────────────────────
         frontLeftDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -101,7 +100,7 @@ public class RapidIntakeFromMarkerTest extends LinearOpMode {
         backRightDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         // ── Init position ──────────────────────────────────────────
-        transfer.setPosition(SERVO_HOME);
+        transferBlocker.setPosition(SERVO_HOME);
 
         telemetry.addLine("✅ Ready — press Start to run Rapid Intake");
         telemetry.addData("Direction", DRIVE_DIRECTION.name());
@@ -117,7 +116,7 @@ public class RapidIntakeFromMarkerTest extends LinearOpMode {
         telemetry.addLine("Step 1: Resetting transfer servo...");
         telemetry.update();
 
-        transfer.setPosition(SERVO_HOME);
+        transferBlocker.setPosition(SERVO_HOME);
         safeSleep(TRANSFER_RESET_DELAY_MS);
 
         // ══════════════════════════════════════════════════════════
@@ -126,8 +125,7 @@ public class RapidIntakeFromMarkerTest extends LinearOpMode {
         telemetry.addLine("Step 2: Starting intake...");
         telemetry.update();
 
-        intake1.setPower(1.0);
-        intake2.setPower(1.0);
+        middleTransfer.setPower(1.0);
 
         // ══════════════════════════════════════════════════════════
         // STEP 3: Drive + intake simultaneously for DRIVE_DURATION_SECS
@@ -149,8 +147,7 @@ public class RapidIntakeFromMarkerTest extends LinearOpMode {
         // STEP 4: Stop everything
         // ══════════════════════════════════════════════════════════
         stopDrive();
-        intake1.setPower(0);
-        intake2.setPower(0);
+        middleTransfer.setPower(0);
 
         telemetry.addLine("✅ Done — intake and drive stopped.");
         telemetry.update();
@@ -216,9 +213,4 @@ public class RapidIntakeFromMarkerTest extends LinearOpMode {
         }
     }
 }
-
-
-
-
-
 
