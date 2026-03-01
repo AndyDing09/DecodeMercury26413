@@ -5,9 +5,9 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.PIDFCoefficients;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
-@TeleOp(name="Dual Shooter with PIDF Tuner", group="Testing")
+@TeleOp(name="Dual Shooter with Custom PIDF", group="Testing")
 public class shooterspeedTest extends LinearOpMode {
 
     // ================= MOTORS =================
@@ -22,12 +22,17 @@ public class shooterspeedTest extends LinearOpMode {
     private boolean lastG1DpadUp = false, lastG1DpadDown = false;
     private boolean lastG1RightBumper = false, lastG1LeftBumper = false;
 
-    // ================= PIDF VARIABLES =================
-    // Starting with the values from your original code
-    private double p = 200.0;
-    private double i = 0.0;
-    private double d = 3.0;
-    private double f = 15.0;
+    // ================= CUSTOM PIDF VARIABLES =================
+    // IMPORTANT: Custom PIDF outputs motor power (0.0 to 1.0).
+    // These values will be much smaller than the built-in REV hub values!
+    private double kP = 0.002;
+    private double kI = 0.000;
+    private double kD = 0.0001;
+    private double kF = 0.0003; // Feedforward is critical for flywheels
+
+    private double integralSum = 0;
+    private double lastError = 0;
+    private ElapsedTime pidTimer = new ElapsedTime();
 
     // Tuning selection state
     private enum TuneState { P, I, D, F }
@@ -46,36 +51,34 @@ public class shooterspeedTest extends LinearOpMode {
         shooterLeft.setDirection(DcMotorSimple.Direction.FORWARD);
         shooterRight.setDirection(DcMotorSimple.Direction.REVERSE);
 
-        shooterLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        shooterRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        // We use RUN_WITHOUT_ENCODER so we can feed it raw power from our custom PIDF math,
+        // but the encoders will STILL track velocity for us to read.
+        shooterLeft.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        shooterRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
         shooterLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         shooterRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
-        telemetry.addLine("✅ Dual Shooter & Tuner Initialized");
+        telemetry.addLine("✅ Custom PIDF Shooter Initialized");
         telemetry.addLine("--- GAMEPAD 1 (SPEED) ---");
         telemetry.addLine("D-Pad Up/Down: +/- 100 RPM");
-        telemetry.addLine("Bumpers: +/- 500 RPM");
         telemetry.addLine("A: 0 | X: 1000 | Y: 2000 | B: 2500");
-        telemetry.addLine("--- GAMEPAD 2 (PIDF) ---");
-        telemetry.addLine("D-Pad Left/Right: Select P, I, D, or F");
-        telemetry.addLine("D-Pad Up/Down: Increase/Decrease selected value");
+        telemetry.addLine("--- GAMEPAD 2 (TUNING) ---");
+        telemetry.addLine("D-Pad L/R: Select P, I, D, or F");
+        telemetry.addLine("D-Pad U/D: Adjust value");
         telemetry.update();
 
         waitForStart();
+        pidTimer.reset();
 
         while (opModeIsActive()) {
 
             // ================= GAMEPAD 1: SPEED CONTROL =================
             boolean currentG1DpadUp = gamepad1.dpad_up;
             boolean currentG1DpadDown = gamepad1.dpad_down;
-            boolean currentG1RightBumper = gamepad1.right_bumper;
-            boolean currentG1LeftBumper = gamepad1.left_bumper;
 
             if (currentG1DpadUp && !lastG1DpadUp) targetRPM += 100;
             if (currentG1DpadDown && !lastG1DpadDown) targetRPM -= 100;
-            if (currentG1RightBumper && !lastG1RightBumper) targetRPM += 500;
-            if (currentG1LeftBumper && !lastG1LeftBumper) targetRPM -= 500;
 
             if (gamepad1.a) targetRPM = 0;
             if (gamepad1.x) targetRPM = 1000;
@@ -84,10 +87,11 @@ public class shooterspeedTest extends LinearOpMode {
 
             if (targetRPM < 0) targetRPM = 0;
 
+            // Reset integral sum if we shut off the motors to prevent wind-up
+            if (targetRPM == 0) integralSum = 0;
+
             lastG1DpadUp = currentG1DpadUp;
             lastG1DpadDown = currentG1DpadDown;
-            lastG1RightBumper = currentG1RightBumper;
-            lastG1LeftBumper = currentG1LeftBumper;
 
             // ================= GAMEPAD 2: PIDF TUNING =================
             boolean currentG2DpadUp = gamepad2.dpad_up;
@@ -108,22 +112,22 @@ public class shooterspeedTest extends LinearOpMode {
                 else if (currentSelected == TuneState.I) currentSelected = TuneState.P;
             }
 
-            // Adjust the selected value (Holding Left Bumper makes it change by smaller increments)
-            double increment = gamepad2.left_bumper ? 0.1 : 1.0;
+            // Custom PIDF values need tiny adjustments (0.0001 or 0.001)
+            double increment = gamepad2.left_bumper ? 0.0001 : 0.001;
 
             if (currentG2DpadUp && !lastG2DpadUp) {
                 switch(currentSelected) {
-                    case P: p += increment; break;
-                    case I: i += increment; break;
-                    case D: d += increment; break;
-                    case F: f += increment; break;
+                    case P: kP += increment; break;
+                    case I: kI += increment; break;
+                    case D: kD += increment; break;
+                    case F: kF += increment; break;
                 }
             } else if (currentG2DpadDown && !lastG2DpadDown) {
                 switch(currentSelected) {
-                    case P: p -= increment; break;
-                    case I: i -= increment; break;
-                    case D: d -= increment; break;
-                    case F: f -= increment; break;
+                    case P: kP -= increment; break;
+                    case I: kI -= increment; break;
+                    case D: kD -= increment; break;
+                    case F: kF -= increment; break;
                 }
             }
 
@@ -132,41 +136,57 @@ public class shooterspeedTest extends LinearOpMode {
             lastG2DpadLeft = currentG2DpadLeft;
             lastG2DpadRight = currentG2DpadRight;
 
-            // Prevent negative PIDF values
-            if (p < 0) p = 0;
-            if (i < 0) i = 0;
-            if (d < 0) d = 0;
-            if (f < 0) f = 0;
+            // ================= CUSTOM PIDF MATH =================
+            // 1. Calculate our target velocity in Ticks Per Second
+            double targetVelocity = (targetRPM * TICKS_PER_REV) / 60.0;
 
-            // ================= APPLY PIDF & VELOCITY =================
-            PIDFCoefficients currentPIDF = new PIDFCoefficients(p, i, d, f);
+            // 2. Get current velocity (averaging the two motors for stability)
+            double currentVelocityLeft = shooterLeft.getVelocity();
+            double currentVelocityRight = shooterRight.getVelocity();
+            double avgCurrentVelocity = (currentVelocityLeft + currentVelocityRight) / 2.0;
 
-            shooterLeft.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, currentPIDF);
-            shooterRight.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, currentPIDF);
+            // 3. Calculate Error and Time
+            double error = targetVelocity - avgCurrentVelocity;
+            double dt = pidTimer.seconds();
+            pidTimer.reset();
 
-            double ticksPerSec = (targetRPM * TICKS_PER_REV) / 60.0;
-            shooterLeft.setVelocity(ticksPerSec);
-            shooterRight.setVelocity(ticksPerSec);
+            // 4. Calculate P, I, D, F components
+            integralSum += (error * dt);
+            double derivative = (error - lastError) / dt;
+            lastError = error;
+
+            // Feedforward (kF) is base power based on target speed. P, I, and D correct the errors.
+            double motorPower = (kP * error) + (kI * integralSum) + (kD * derivative) + (kF * targetVelocity);
+
+            // 5. Clamp power to normal motor ranges (0.0 to 1.0)
+            if (targetRPM == 0) {
+                motorPower = 0; // Absolute shutoff
+            } else {
+                motorPower = Math.max(0.0, Math.min(1.0, motorPower)); // Prevents negative power or going over 1.0
+            }
+
+            // 6. Apply Raw Power
+            shooterLeft.setPower(motorPower);
+            shooterRight.setPower(motorPower);
 
             // ================= TELEMETRY =================
             telemetry.addData("TARGET RPM", targetRPM);
+            telemetry.addData("Calculated Motor Power", "%.2f", motorPower);
             telemetry.addLine();
 
             telemetry.addLine("--- PIDF TUNING ---");
             telemetry.addData("Selected", "-> " + currentSelected.name() + " <-");
-            telemetry.addData("P", "%.1f %s", p, currentSelected == TuneState.P ? "<--" : "");
-            telemetry.addData("I", "%.1f %s", i, currentSelected == TuneState.I ? "<--" : "");
-            telemetry.addData("D", "%.1f %s", d, currentSelected == TuneState.D ? "<--" : "");
-            telemetry.addData("F", "%.1f %s", f, currentSelected == TuneState.F ? "<--" : "");
-            telemetry.addLine("(Hold G2 Left Bumper for 0.1 increments)");
+            telemetry.addData("kP", "%.4f %s", kP, currentSelected == TuneState.P ? "<--" : "");
+            telemetry.addData("kI", "%.4f %s", kI, currentSelected == TuneState.I ? "<--" : "");
+            telemetry.addData("kD", "%.4f %s", kD, currentSelected == TuneState.D ? "<--" : "");
+            telemetry.addData("kF", "%.4f %s", kF, currentSelected == TuneState.F ? "<--" : "");
+            telemetry.addLine("(Hold G2 Left Bumper for 0.0001 increments)");
             telemetry.addLine();
 
             telemetry.addLine("--- MOTOR PERFORMANCE ---");
-            double actualTicksLeft = shooterLeft.getVelocity();
-            double actualTicksRight = shooterRight.getVelocity();
-
-            telemetry.addData("Left Actual RPM", (actualTicksLeft * 60.0) / TICKS_PER_REV);
-            telemetry.addData("Right Actual RPM", (actualTicksRight * 60.0) / TICKS_PER_REV);
+            telemetry.addData("Target Ticks/Sec", targetVelocity);
+            telemetry.addData("Left Actual RPM", (currentVelocityLeft * 60.0) / TICKS_PER_REV);
+            telemetry.addData("Right Actual RPM", (currentVelocityRight * 60.0) / TICKS_PER_REV);
 
             telemetry.update();
         }
