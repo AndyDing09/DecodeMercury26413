@@ -31,16 +31,16 @@ public class RapidIntakeFromMarkerTest extends LinearOpMode {
     // ══════════════════════════════════════════════════════════════
 
     /** Power applied to the drive motors while intaking (0.0 – 1.0) */
-    private static final double DRIVE_POWER = 0.4;
+    private static final double DRIVE_POWER = 0.2;
 
     /** How long (seconds) to drive + intake before stopping */
-    private static final double DRIVE_DURATION_SECS = 3.5;
+    private static final double DRIVE_DURATION_SECS = 3.0;
 
     /**
      * Direction to move while intaking.
      * Options: FORWARD, STRAFE_LEFT, STRAFE_RIGHT, NONE
      */
-    private static final DriveDirection DRIVE_DIRECTION = DriveDirection.STRAFE_RIGHT;
+    private static final DriveDirection DRIVE_DIRECTION = DriveDirection.FORWARD;
 
     /** Pause (ms) after resetting the transfer servo before starting intake */
     private static final long TRANSFER_RESET_DELAY_MS = 300;
