@@ -5,7 +5,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.util.ElapsedTime;
+// ElapsedTime no longer required; PIDFMotorController has its own timer
 
 @TeleOp(name="Dual Shooter with Custom PIDF", group="Testing")
 public class shooterspeedTest extends LinearOpMode {
@@ -25,17 +25,20 @@ public class shooterspeedTest extends LinearOpMode {
     // ================= CUSTOM PIDF VARIABLES =================
     // IMPORTANT: Custom PIDF outputs motor power (0.0 to 1.0).
     // These values will be much smaller than the built-in REV hub values!
-    private double kP = 0.002;
-    private double kI = 0.000;
-    private double kD = 0.0001;
-    private double kF = 0.0003; // Feedforward is critical for flywheels
+    private double kP = 0.0064;  // Gain has been tuned up with hardware.
+    private double kI = 0.00001;
+    private double kD = 0.0000;
+    
+    // Split Feedforward for asymmetric tuning
+    private double kF_Left = 0.0007; // Gain has been tuned up with hardware.
+    private double kF_Right = 0.0002; 
 
-    private double integralSum = 0;
-    private double lastError = 0;
-    private ElapsedTime pidTimer = new ElapsedTime();
+    // Controllers (one per motor)
+    private PIDFMotorController leftController;
+    private PIDFMotorController rightController;
 
-    // Tuning selection state
-    private enum TuneState { P, I, D, F }
+    // Tuning selection state - Now includes independent F values
+    private enum TuneState { P, I, D, F_LEFT, F_RIGHT }
     private TuneState currentSelected = TuneState.P;
 
     // Gamepad 2 Edge Detection
@@ -64,12 +67,15 @@ public class shooterspeedTest extends LinearOpMode {
         telemetry.addLine("D-Pad Up/Down: +/- 100 RPM");
         telemetry.addLine("A: 0 | X: 1000 | Y: 2000 | B: 2500");
         telemetry.addLine("--- GAMEPAD 2 (TUNING) ---");
-        telemetry.addLine("D-Pad L/R: Select P, I, D, or F");
+        telemetry.addLine("D-Pad L/R: Select P, I, D, F_Left, or F_Right");
         telemetry.addLine("D-Pad U/D: Adjust value");
         telemetry.update();
 
-        waitForStart();
-        pidTimer.reset();
+    waitForStart();
+
+    // instantiate controllers using tuned gains and independent feed-forwards
+    leftController = new PIDFMotorController(kP, kI, kD, kF_Left, TICKS_PER_REV);
+    rightController = new PIDFMotorController(kP, kI, kD, kF_Right, TICKS_PER_REV);
 
         while (opModeIsActive()) {
 
@@ -87,8 +93,11 @@ public class shooterspeedTest extends LinearOpMode {
 
             if (targetRPM < 0) targetRPM = 0;
 
-            // Reset integral sum if we shut off the motors to prevent wind-up
-            if (targetRPM == 0) integralSum = 0;
+            // Reset controllers if we shut off the motors to prevent wind-up
+            if (targetRPM == 0) {
+                if (leftController != null) leftController.reset();
+                if (rightController != null) rightController.reset();
+            }
 
             lastG1DpadUp = currentG1DpadUp;
             lastG1DpadDown = currentG1DpadDown;
@@ -99,35 +108,46 @@ public class shooterspeedTest extends LinearOpMode {
             boolean currentG2DpadLeft = gamepad2.dpad_left;
             boolean currentG2DpadRight = gamepad2.dpad_right;
 
-            // Cycle through P, I, D, F
+            // Cycle through P, I, D, F_LEFT, F_RIGHT
             if (currentG2DpadRight && !lastG2DpadRight) {
                 if (currentSelected == TuneState.P) currentSelected = TuneState.I;
                 else if (currentSelected == TuneState.I) currentSelected = TuneState.D;
-                else if (currentSelected == TuneState.D) currentSelected = TuneState.F;
-                else if (currentSelected == TuneState.F) currentSelected = TuneState.P;
+                else if (currentSelected == TuneState.D) currentSelected = TuneState.F_LEFT;
+                else if (currentSelected == TuneState.F_LEFT) currentSelected = TuneState.F_RIGHT;
+                else if (currentSelected == TuneState.F_RIGHT) currentSelected = TuneState.P;
             } else if (currentG2DpadLeft && !lastG2DpadLeft) {
-                if (currentSelected == TuneState.P) currentSelected = TuneState.F;
-                else if (currentSelected == TuneState.F) currentSelected = TuneState.D;
+                if (currentSelected == TuneState.P) currentSelected = TuneState.F_RIGHT;
+                else if (currentSelected == TuneState.F_RIGHT) currentSelected = TuneState.F_LEFT;
+                else if (currentSelected == TuneState.F_LEFT) currentSelected = TuneState.D;
                 else if (currentSelected == TuneState.D) currentSelected = TuneState.I;
                 else if (currentSelected == TuneState.I) currentSelected = TuneState.P;
             }
 
-            // Custom PIDF values need tiny adjustments (0.0001 or 0.001)
-            double increment = gamepad2.left_bumper ? 0.0001 : 0.001;
+            // Custom increment sizes
+            double increment;
+            if (currentSelected == TuneState.I) {
+                // Integral term needs to be 10x smaller to prevent instant saturation
+                increment = gamepad2.left_bumper ? 0.00001 : 0.0001;
+            } else {
+                // Standard tuning steps for P, D, and F
+                increment = gamepad2.left_bumper ? 0.0001 : 0.001;
+            }
 
             if (currentG2DpadUp && !lastG2DpadUp) {
                 switch(currentSelected) {
                     case P: kP += increment; break;
                     case I: kI += increment; break;
                     case D: kD += increment; break;
-                    case F: kF += increment; break;
+                    case F_LEFT: kF_Left += increment; break;
+                    case F_RIGHT: kF_Right += increment; break;
                 }
             } else if (currentG2DpadDown && !lastG2DpadDown) {
                 switch(currentSelected) {
                     case P: kP -= increment; break;
                     case I: kI -= increment; break;
                     case D: kD -= increment; break;
-                    case F: kF -= increment; break;
+                    case F_LEFT: kF_Left -= increment; break;
+                    case F_RIGHT: kF_Right -= increment; break;
                 }
             }
 
@@ -136,51 +156,39 @@ public class shooterspeedTest extends LinearOpMode {
             lastG2DpadLeft = currentG2DpadLeft;
             lastG2DpadRight = currentG2DpadRight;
 
-            // ================= CUSTOM PIDF MATH =================
-            // 1. Calculate our target velocity in Ticks Per Second
-            double targetVelocity = (targetRPM * TICKS_PER_REV) / 60.0;
+            // ================= CUSTOM PIDF (via PIDFMotorController) =================
+            double powerLeft = 0.0;
+            double powerRight = 0.0;
 
-            // 2. Get current velocity (averaging the two motors for stability)
-            double currentVelocityLeft = shooterLeft.getVelocity();
-            double currentVelocityRight = shooterRight.getVelocity();
-            double avgCurrentVelocity = (currentVelocityLeft + currentVelocityRight) / 2.0;
-
-            // 3. Calculate Error and Time
-            double error = targetVelocity - avgCurrentVelocity;
-            double dt = pidTimer.seconds();
-            pidTimer.reset();
-
-            // 4. Calculate P, I, D, F components
-            integralSum += (error * dt);
-            double derivative = (error - lastError) / dt;
-            lastError = error;
-
-            // Feedforward (kF) is base power based on target speed. P, I, and D correct the errors.
-            double motorPower = (kP * error) + (kI * integralSum) + (kD * derivative) + (kF * targetVelocity);
-
-            // 5. Clamp power to normal motor ranges (0.0 to 1.0)
             if (targetRPM == 0) {
-                motorPower = 0; // Absolute shutoff
+                shooterLeft.setPower(0.0);
+                shooterRight.setPower(0.0);
             } else {
-                motorPower = Math.max(0.0, Math.min(1.0, motorPower)); // Prevents negative power or going over 1.0
+                // Apply live tunings (keeps controllers in sync with gamepad adjustments)
+                if (leftController != null) leftController.setTunings(kP, kI, kD, kF_Left);
+                if (rightController != null) rightController.setTunings(kP, kI, kD, kF_Right);
+
+                powerLeft = leftController.applyToMotor(shooterLeft, targetRPM);
+                powerRight = rightController.applyToMotor(shooterRight, targetRPM);
             }
 
-            // 6. Apply Raw Power
-            shooterLeft.setPower(motorPower);
-            shooterRight.setPower(motorPower);
-
             // ================= TELEMETRY =================
+            double targetVelocity = (targetRPM * TICKS_PER_REV) / 60.0;
+            double currentVelocityLeft = shooterLeft.getVelocity();
+            double currentVelocityRight = shooterRight.getVelocity();
+
             telemetry.addData("TARGET RPM", targetRPM);
-            telemetry.addData("Calculated Motor Power", "%.2f", motorPower);
+            telemetry.addData("Power (L/R)", "%.2f / %.2f", powerLeft, powerRight);
             telemetry.addLine();
 
             telemetry.addLine("--- PIDF TUNING ---");
             telemetry.addData("Selected", "-> " + currentSelected.name() + " <-");
-            telemetry.addData("kP", "%.4f %s", kP, currentSelected == TuneState.P ? "<--" : "");
-            telemetry.addData("kI", "%.4f %s", kI, currentSelected == TuneState.I ? "<--" : "");
-            telemetry.addData("kD", "%.4f %s", kD, currentSelected == TuneState.D ? "<--" : "");
-            telemetry.addData("kF", "%.4f %s", kF, currentSelected == TuneState.F ? "<--" : "");
-            telemetry.addLine("(Hold G2 Left Bumper for 0.0001 increments)");
+            telemetry.addData("kP", "%.5f %s", kP, currentSelected == TuneState.P ? "<--" : "");
+            telemetry.addData("kI", "%.5f %s", kI, currentSelected == TuneState.I ? "<--" : "");
+            telemetry.addData("kD", "%.5f %s", kD, currentSelected == TuneState.D ? "<--" : "");
+            telemetry.addData("kF_Left", "%.5f %s", kF_Left, currentSelected == TuneState.F_LEFT ? "<--" : "");
+            telemetry.addData("kF_Right", "%.5f %s", kF_Right, currentSelected == TuneState.F_RIGHT ? "<--" : "");
+            telemetry.addLine("(Hold G2 Left Bumper for finer increments. 'I' is 10x finer)");
             telemetry.addLine();
 
             telemetry.addLine("--- MOTOR PERFORMANCE ---");

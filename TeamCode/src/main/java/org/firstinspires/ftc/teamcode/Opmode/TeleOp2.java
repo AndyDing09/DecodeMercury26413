@@ -25,11 +25,11 @@ public class TeleOp2 extends LinearOpMode {
 
     // ================= MECHANISMS =================
     private DcMotor middleTransfer;
-    private DcMotorEx shooterMotor, frontIntake;
+    private DcMotorEx shooterLeft, shooterRight;
     private VoltageSensor voltageSensor;
 
-    private Servo Intakelift;
-    private Servo TurnTable2, turntable3, transferBlocker, Gate;
+
+    private Servo transferBlocker, Gate;
 
     // ================= TURRET TRACKING =================
     private DcMotorEx turretMotor;
@@ -109,14 +109,11 @@ public class TeleOp2 extends LinearOpMode {
         frontRightDrive = hardwareMap.get(DcMotor.class, "front_right_drive");
         backRightDrive  = hardwareMap.get(DcMotor.class, "back_right_drive");
 
-        shooterMotor  = hardwareMap.get(DcMotorEx.class, "Shooter");
-        frontIntake   = hardwareMap.get(DcMotorEx.class, "frontIntake");
+        shooterLeft  = hardwareMap.get(DcMotorEx.class, "shooterLeft");
+        shooterRight   = hardwareMap.get(DcMotorEx.class, "shooterRight");
 
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
 
-        Intakelift = hardwareMap.servo.get("Intakelift");
-        TurnTable2 = hardwareMap.servo.get("TurnTable");
-        turntable3 = hardwareMap.servo.get("turntable3");
         transferBlocker = hardwareMap.servo.get("transferBlocker");
         Gate = hardwareMap.servo.get("Gate");
 
@@ -137,18 +134,15 @@ public class TeleOp2 extends LinearOpMode {
         backRightDrive.setDirection(DcMotor.Direction.FORWARD);
 
         middleTransfer.setDirection(DcMotor.Direction.FORWARD);
-        frontIntake.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooterRight.setDirection(DcMotorSimple.Direction.REVERSE);
 
-        shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
-        shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        shooterLeft.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooterLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooterLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         // INIT POSITIONS
-        Intakelift.setPosition(ServoDown);
         transferBlocker.setPosition(ServoStart);
         Gate.setPosition(0.23);
-        TurnTable2.setPosition(0.5);
-        turntable3.setPosition(0.5);
 
         telemetry.addLine("✅ Robot Initialized");
         telemetry.addLine("Press Gamepad2 A to reset turret encoder");
@@ -186,23 +180,17 @@ public class TeleOp2 extends LinearOpMode {
             backRightDrive.setPower(br);
 
             // INTAKE
-            if (gamepad1.square) {
-                frontIntake.setPower(-1);
-                middleTransfer.setPower(1);
-                Intakelift.setPosition(ServoStart);
-            } else {
+
                 if (gamepad1.circle && !lastCircle) intakeOn = !intakeOn;
                 lastCircle = gamepad1.circle;
 
                 if (intakeOn) {
-                    frontIntake.setPower(-1);
-                    middleTransfer.setPower(-1);
-                    Intakelift.setPosition(ServoDown);
+                    middleTransfer.setPower(1);
                 } else {
-                    frontIntake.setPower(0);
+                    shooterRight.setPower(0);
                     middleTransfer.setPower(0);
                 }
-            }
+
 
             // SHOOTER INPUTS
             boolean lb = gamepad1.left_bumper;
@@ -251,9 +239,9 @@ public class TeleOp2 extends LinearOpMode {
             if (gamepad2.dpad_up) Gate.setPosition(0.09);
 
             PIDFCoefficients pidf = new PIDFCoefficients(P, I, D, F);
-            shooterMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidf);
+            shooterLeft.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidf);
             double ticksPerSec = (shooterOn && !shooterKilled) ? (targetRPM * TICKS_PER_REV / 60.0) : 0;
-            shooterMotor.setVelocity(ticksPerSec);
+            shooterLeft.setVelocity(ticksPerSec);
 
             updateTurretTracking();
             updateTelemetry();
