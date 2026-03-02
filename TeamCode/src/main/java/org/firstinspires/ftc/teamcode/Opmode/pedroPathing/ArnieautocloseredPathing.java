@@ -187,6 +187,8 @@ public class ArnieautocloseredPathing extends LinearOpMode {
                 .setLinearHeadingInterpolation(PickfromclearPose.getHeading(), shootPose.getHeading())
                 .build();
 
+        // shoot -> preclear -> clear -> pickfromclear (for 2nd and 3rd clear cycles)
+        // Reuse toClear and toPickFromClear — same poses, just called again in state machine
 
         // shoot -> pickup1
         toPickup1 = follower.pathBuilder()

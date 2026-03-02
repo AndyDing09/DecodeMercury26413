@@ -5,7 +5,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-// ElapsedTime no longer required; PIDFMotorController has its own timer
+import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 @TeleOp(name="Dual Shooter with Custom PIDF", group="Testing")
 public class shooterspeedTest extends LinearOpMode {
@@ -13,14 +13,21 @@ public class shooterspeedTest extends LinearOpMode {
     // ================= MOTORS =================
     private DcMotorEx shooterLeft;
     private DcMotorEx shooterRight;
+    private DcMotor middleTransfer;
+    private VoltageSensor voltageSensor;
 
     // ================= SPEED VARIABLES =================
     private double targetRPM = 0;
     private static final double TICKS_PER_REV = 28.0;
+    private static final double NOMINAL_VOLTAGE = 12.0; // nominal battery voltage (12V)
 
     // Gamepad 1 Edge Detection
     private boolean lastG1DpadUp = false, lastG1DpadDown = false;
     private boolean lastG1RightBumper = false, lastG1LeftBumper = false;
+    private boolean lastCircle = false;
+
+    // ================= INTAKE =================
+    private boolean intakeOn = false;
 
     // ================= CUSTOM PIDF VARIABLES =================
     // IMPORTANT: Custom PIDF outputs motor power (0.0 to 1.0).
@@ -28,17 +35,16 @@ public class shooterspeedTest extends LinearOpMode {
     private double kP = 0.0064;  // Gain has been tuned up with hardware.
     private double kI = 0.00001;
     private double kD = 0.0000;
-    
-    // Split Feedforward for asymmetric tuning
-    private double kF_Left = 0.0007; // Gain has been tuned up with hardware.
-    private double kF_Right = 0.0002; 
+
+    // Unified feedforward for both motors to prevent lag
+    private double kF = 0.0007;
 
     // Controllers (one per motor)
     private PIDFMotorController leftController;
     private PIDFMotorController rightController;
 
-    // Tuning selection state - Now includes independent F values
-    private enum TuneState { P, I, D, F_LEFT, F_RIGHT }
+    // Tuning selection state
+    private enum TuneState { P, I, D, F }
     private TuneState currentSelected = TuneState.P;
 
     // Gamepad 2 Edge Detection
@@ -50,6 +56,8 @@ public class shooterspeedTest extends LinearOpMode {
         // HARDWARE MAP
         shooterLeft = hardwareMap.get(DcMotorEx.class, "shooterLeft");
         shooterRight = hardwareMap.get(DcMotorEx.class, "shooterRight");
+        middleTransfer = hardwareMap.get(DcMotor.class, "middleTransfer");
+        voltageSensor = hardwareMap.voltageSensor.iterator().next();
 
         shooterLeft.setDirection(DcMotorSimple.Direction.FORWARD);
         shooterRight.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -66,16 +74,17 @@ public class shooterspeedTest extends LinearOpMode {
         telemetry.addLine("--- GAMEPAD 1 (SPEED) ---");
         telemetry.addLine("D-Pad Up/Down: +/- 100 RPM");
         telemetry.addLine("A: 0 | X: 1000 | Y: 2000 | B: 2500");
+        telemetry.addLine("Circle: Toggle Intake");
         telemetry.addLine("--- GAMEPAD 2 (TUNING) ---");
         telemetry.addLine("D-Pad L/R: Select P, I, D, F_Left, or F_Right");
         telemetry.addLine("D-Pad U/D: Adjust value");
         telemetry.update();
 
-    waitForStart();
+        waitForStart();
 
-    // instantiate controllers using tuned gains and independent feed-forwards
-    leftController = new PIDFMotorController(kP, kI, kD, kF_Left, TICKS_PER_REV);
-    rightController = new PIDFMotorController(kP, kI, kD, kF_Right, TICKS_PER_REV);
+        // instantiate controllers using tuned gains and independent feed-forwards
+        leftController = new PIDFMotorController(kP, kI, kD, kF, TICKS_PER_REV);
+        rightController = new PIDFMotorController(kP, kI, kD, kF, TICKS_PER_REV);
 
         while (opModeIsActive()) {
 
@@ -102,23 +111,31 @@ public class shooterspeedTest extends LinearOpMode {
             lastG1DpadUp = currentG1DpadUp;
             lastG1DpadDown = currentG1DpadDown;
 
+            // ================= INTAKE =================
+            if (gamepad1.circle && !lastCircle) intakeOn = !intakeOn;
+            lastCircle = gamepad1.circle;
+
+            if (intakeOn) {
+                middleTransfer.setPower(1);
+            } else {
+                middleTransfer.setPower(0);
+            }
+
             // ================= GAMEPAD 2: PIDF TUNING =================
             boolean currentG2DpadUp = gamepad2.dpad_up;
             boolean currentG2DpadDown = gamepad2.dpad_down;
             boolean currentG2DpadLeft = gamepad2.dpad_left;
             boolean currentG2DpadRight = gamepad2.dpad_right;
 
-            // Cycle through P, I, D, F_LEFT, F_RIGHT
+            // Cycle through P, I, D, F
             if (currentG2DpadRight && !lastG2DpadRight) {
                 if (currentSelected == TuneState.P) currentSelected = TuneState.I;
                 else if (currentSelected == TuneState.I) currentSelected = TuneState.D;
-                else if (currentSelected == TuneState.D) currentSelected = TuneState.F_LEFT;
-                else if (currentSelected == TuneState.F_LEFT) currentSelected = TuneState.F_RIGHT;
-                else if (currentSelected == TuneState.F_RIGHT) currentSelected = TuneState.P;
+                else if (currentSelected == TuneState.D) currentSelected = TuneState.F;
+                else if (currentSelected == TuneState.F) currentSelected = TuneState.P;
             } else if (currentG2DpadLeft && !lastG2DpadLeft) {
-                if (currentSelected == TuneState.P) currentSelected = TuneState.F_RIGHT;
-                else if (currentSelected == TuneState.F_RIGHT) currentSelected = TuneState.F_LEFT;
-                else if (currentSelected == TuneState.F_LEFT) currentSelected = TuneState.D;
+                if (currentSelected == TuneState.P) currentSelected = TuneState.F;
+                else if (currentSelected == TuneState.F) currentSelected = TuneState.D;
                 else if (currentSelected == TuneState.D) currentSelected = TuneState.I;
                 else if (currentSelected == TuneState.I) currentSelected = TuneState.P;
             }
@@ -138,16 +155,14 @@ public class shooterspeedTest extends LinearOpMode {
                     case P: kP += increment; break;
                     case I: kI += increment; break;
                     case D: kD += increment; break;
-                    case F_LEFT: kF_Left += increment; break;
-                    case F_RIGHT: kF_Right += increment; break;
+                    case F: kF += increment; break;
                 }
             } else if (currentG2DpadDown && !lastG2DpadDown) {
                 switch(currentSelected) {
                     case P: kP -= increment; break;
                     case I: kI -= increment; break;
                     case D: kD -= increment; break;
-                    case F_LEFT: kF_Left -= increment; break;
-                    case F_RIGHT: kF_Right -= increment; break;
+                    case F: kF -= increment; break;
                 }
             }
 
@@ -165,11 +180,20 @@ public class shooterspeedTest extends LinearOpMode {
                 shooterRight.setPower(0.0);
             } else {
                 // Apply live tunings (keeps controllers in sync with gamepad adjustments)
-                if (leftController != null) leftController.setTunings(kP, kI, kD, kF_Left);
-                if (rightController != null) rightController.setTunings(kP, kI, kD, kF_Right);
+                if (leftController != null) leftController.setTunings(kP, kI, kD, kF);
+                if (rightController != null) rightController.setTunings(kP, kI, kD, kF);
 
-                powerLeft = leftController.applyToMotor(shooterLeft, targetRPM);
-                powerRight = rightController.applyToMotor(shooterRight, targetRPM);
+                // Get current battery voltage for compensation
+                double currentVoltage = voltageSensor.getVoltage();
+
+                // Compute power with voltage compensation
+                powerLeft = leftController.computePowerForTargetRPMWithVoltageCompensation(
+                        targetRPM, shooterLeft.getVelocity(), currentVoltage, NOMINAL_VOLTAGE);
+                powerRight = rightController.computePowerForTargetRPMWithVoltageCompensation(
+                        targetRPM, shooterRight.getVelocity(), currentVoltage, NOMINAL_VOLTAGE);
+
+                shooterLeft.setPower(powerLeft);
+                shooterRight.setPower(powerRight);
             }
 
             // ================= TELEMETRY =================
@@ -179,6 +203,7 @@ public class shooterspeedTest extends LinearOpMode {
 
             telemetry.addData("TARGET RPM", targetRPM);
             telemetry.addData("Power (L/R)", "%.2f / %.2f", powerLeft, powerRight);
+            telemetry.addData("Intake", intakeOn ? "ON" : "OFF");
             telemetry.addLine();
 
             telemetry.addLine("--- PIDF TUNING ---");
@@ -186,8 +211,7 @@ public class shooterspeedTest extends LinearOpMode {
             telemetry.addData("kP", "%.5f %s", kP, currentSelected == TuneState.P ? "<--" : "");
             telemetry.addData("kI", "%.5f %s", kI, currentSelected == TuneState.I ? "<--" : "");
             telemetry.addData("kD", "%.5f %s", kD, currentSelected == TuneState.D ? "<--" : "");
-            telemetry.addData("kF_Left", "%.5f %s", kF_Left, currentSelected == TuneState.F_LEFT ? "<--" : "");
-            telemetry.addData("kF_Right", "%.5f %s", kF_Right, currentSelected == TuneState.F_RIGHT ? "<--" : "");
+            telemetry.addData("kF", "%.5f %s", kF, currentSelected == TuneState.F ? "<--" : "");
             telemetry.addLine("(Hold G2 Left Bumper for finer increments. 'I' is 10x finer)");
             telemetry.addLine();
 
@@ -195,6 +219,8 @@ public class shooterspeedTest extends LinearOpMode {
             telemetry.addData("Target Ticks/Sec", targetVelocity);
             telemetry.addData("Left Actual RPM", (currentVelocityLeft * 60.0) / TICKS_PER_REV);
             telemetry.addData("Right Actual RPM", (currentVelocityRight * 60.0) / TICKS_PER_REV);
+            double currentVoltage = voltageSensor.getVoltage();
+            telemetry.addData("Battery Voltage", String.format("%.1f V", currentVoltage));
 
             telemetry.update();
         }

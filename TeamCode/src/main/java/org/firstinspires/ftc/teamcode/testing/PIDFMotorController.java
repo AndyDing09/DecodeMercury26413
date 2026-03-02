@@ -41,7 +41,7 @@ public class PIDFMotorController {
         this.ticksPerRev = ticksPerRev;
         timer.reset();
     }
-    
+
 
     /** Reset integral and derivative history. Call when stopping motor or changing setpoints drastically. */
     public void reset() {
@@ -105,6 +105,37 @@ public class PIDFMotorController {
         double power = computePowerForTargetRPM(targetRPM, currentTicksPerSec);
         motor.setPower(power);
         return power;
+    }
+
+    /**
+     * Apply voltage compensation to raw power to maintain consistent motor output across voltage variations.
+     * Scales power inversely with voltage to keep RPM stable as battery drains.
+     *
+     * @param rawPower unadjusted power [0..1] from PID calculation
+     * @param currentVoltage actual measured voltage in volts
+     * @param nominalVoltage expected/nominal voltage (e.g., 12V for a 12V battery)
+     * @return voltage-compensated power, clamped to [0..1]
+     */
+    public static double compensateForVoltage(double rawPower, double currentVoltage, double nominalVoltage) {
+        if (currentVoltage <= 0 || nominalVoltage <= 0) return rawPower; // safety check
+        double compensated = rawPower * (nominalVoltage / currentVoltage);
+        // clamp to [0, 1]
+        return Math.min(1.0, Math.max(0.0, compensated));
+    }
+
+    /**
+     * Compute motor power with voltage compensation already applied.
+     *
+     * @param targetRPM desired RPM
+     * @param currentTicksPerSec current measured velocity in ticks per second
+     * @param currentVoltage actual measured voltage in volts
+     * @param nominalVoltage expected/nominal voltage (e.g., 12V)
+     * @return voltage-compensated power in range [0,1]
+     */
+    public double computePowerForTargetRPMWithVoltageCompensation(
+            double targetRPM, double currentTicksPerSec, double currentVoltage, double nominalVoltage) {
+        double rawPower = computePowerForTargetRPM(targetRPM, currentTicksPerSec);
+        return compensateForVoltage(rawPower, currentVoltage, nominalVoltage);
     }
 
     // getters for tuning/debugging

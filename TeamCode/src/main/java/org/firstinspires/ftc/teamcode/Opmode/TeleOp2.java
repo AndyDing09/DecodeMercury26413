@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.Opmode;
 
-import static java.lang.Math.min;
 
 import android.annotation.SuppressLint;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -8,7 +7,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.PIDFCoefficients;
+import org.firstinspires.ftc.teamcode.testing.PIDFMotorController;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
@@ -81,20 +80,19 @@ public class TeleOp2 extends LinearOpMode {
     private boolean lastLeftBumper, lastRightBumper, lastTriangle;
 
     private double targetRPM = 0;
-    private final double fastMaxRPM = 2500;
-    private final double slowMaxRPM = 250;
-    private double fastStartTime = -1;
-    private double slowStartTime = -1;
     private static final double TICKS_PER_REV = 28.0;
+    private static final double NOMINAL_VOLTAGE = 12.0; // nominal battery voltage (12V)
 
-    enum ShooterMode { OFF, FAST, SLOW }
-    private ShooterMode shooterMode = ShooterMode.OFF;
+    // ================= PIDF (custom controller) =================
+    // Custom shooter PIDF (from shooterspeedTestV4)
+    private double kP_shooter = 0.0064;
+    private double kI_shooter = 0.00001;
+    private double kD_shooter = 0.0;
+    private double kF_Left = 0.0007;
+    private double kF_Right = 0.0002;
 
-    // ================= PIDF =================
-    private double P = 200;
-    private double I = 0;
-    private double D = 3;
-    private double F = 15;
+    private PIDFMotorController leftController = null;
+    private PIDFMotorController rightController = null;
 
     // ================= SERVO POSITIONS =================
     private final double ServoStart = 0.5;
@@ -136,13 +134,16 @@ public class TeleOp2 extends LinearOpMode {
         middleTransfer.setDirection(DcMotor.Direction.FORWARD);
         shooterRight.setDirection(DcMotorSimple.Direction.REVERSE);
 
-        shooterLeft.setDirection(DcMotorSimple.Direction.REVERSE);
-        shooterLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        shooterLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        shooterLeft.setDirection(DcMotorSimple.Direction.FORWARD);
+        // Use RUN_WITHOUT_ENCODER so we can drive power directly from our custom PIDF
+        shooterLeft.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        shooterLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        shooterRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        shooterRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         // INIT POSITIONS
         transferBlocker.setPosition(ServoStart);
-        Gate.setPosition(0.23);
+        Gate.setPosition(0.5);
 
         telemetry.addLine("✅ Robot Initialized");
         telemetry.addLine("Press Gamepad2 A to reset turret encoder");
@@ -151,6 +152,10 @@ public class TeleOp2 extends LinearOpMode {
         waitForStart();
 
         if (AUTO_CENTER_ON_INIT) centerTurret();
+
+        // instantiate custom PIDF controllers for shooters
+        leftController = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_Left, TICKS_PER_REV);
+        rightController = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_Right, TICKS_PER_REV);
 
         while (opModeIsActive()) {
             // RESET TURRET ENCODER
@@ -181,15 +186,14 @@ public class TeleOp2 extends LinearOpMode {
 
             // INTAKE
 
-                if (gamepad1.circle && !lastCircle) intakeOn = !intakeOn;
-                lastCircle = gamepad1.circle;
+            if (gamepad1.circle && !lastCircle) intakeOn = !intakeOn;
+            lastCircle = gamepad1.circle;
 
-                if (intakeOn) {
-                    middleTransfer.setPower(1);
-                } else {
-                    shooterRight.setPower(0);
-                    middleTransfer.setPower(0);
-                }
+            if (intakeOn) {
+                middleTransfer.setPower(1);
+            } else {
+                middleTransfer.setPower(0);
+            }
 
 
             // SHOOTER INPUTS
@@ -198,50 +202,67 @@ public class TeleOp2 extends LinearOpMode {
             boolean tri = gamepad1.triangle;
 
             if (tri && !lastTriangle) {
+                // kill shooter immediately
                 shooterOn = false;
                 shooterKilled = true;
-                shooterMode = ShooterMode.OFF;
                 targetRPM = 0;
-                Gate.setPosition(0.23);
+                Gate.setPosition(0.5);
             }
             if (lb && !lastLeftBumper) {
+                // left bumper sets high speed
                 shooterOn = true;
                 shooterKilled = false;
-                shooterMode = ShooterMode.FAST;
-                fastStartTime = getRuntime();
-                Gate.setPosition(0.09);
+                targetRPM = 6000;               // 6000 RPM demand
+                Gate.setPosition(0.27);
             }
             if (rb && !lastRightBumper) {
+                // right bumper sets lower speed
                 shooterOn = true;
                 shooterKilled = false;
-                shooterMode = ShooterMode.SLOW;
-                slowStartTime = getRuntime();
-                Gate.setPosition(0.09);
+                targetRPM = 3000;               // 3000 RPM demand
+                Gate.setPosition(0.27);
             }
 
-            lastLeftBumper = lb; lastRightBumper = rb; lastTriangle = tri;
+            lastLeftBumper = lb;
+            lastRightBumper = rb;
+            lastTriangle = tri;
 
-            // RAMP LOGIC
-            if (shooterOn && !shooterKilled) {
-                if (shooterMode == ShooterMode.FAST) {
-                    double t = getRuntime() - fastStartTime;
-                    targetRPM = (t < 2) ? 1400 : (t < 6) ? min(1100 + t * 100, 1600) : 0;
-                    if (t >= 6) Gate.setPosition(0.23);
-                }
-                if (shooterMode == ShooterMode.SLOW) {
-                    double t = getRuntime() - slowStartTime;
-                    targetRPM = (t < 2) ? slowMaxRPM : (t < 6) ? min(250 + t * 50, 300) : 0;
-                    if (t >= 6) Gate.setPosition(0.23);
-                }
+            // no longer using ramp logic; targetRPM is constant once set
+
+            if (gamepad2.dpad_down) Gate.setPosition(0.27);
+            if (gamepad2.dpad_up) Gate.setPosition(0.5);
+
+            // Apply custom PIDF controller to shooter motors (powered 0..1) with voltage compensation
+            if (!shooterOn || shooterKilled || targetRPM <= 0) {
+                shooterLeft.setPower(0);
+                shooterRight.setPower(0);
+                if (leftController != null) leftController.reset();
+                if (rightController != null) rightController.reset();
+            } else {
+                // update tunings live (allows in-match adjustment if needed)
+                if (leftController != null) leftController.setTunings(kP_shooter, kI_shooter, kD_shooter, kF_Left);
+                if (rightController != null) rightController.setTunings(kP_shooter, kI_shooter, kD_shooter, kF_Right);
+
+                // Get current battery voltage for compensation
+                double currentVoltage = voltageSensor.getVoltage();
+
+                // Compute power with voltage compensation
+                double powerLeft = leftController.computePowerForTargetRPMWithVoltageCompensation(
+                        targetRPM, shooterLeft.getVelocity(), currentVoltage, NOMINAL_VOLTAGE);
+                double powerRight = rightController.computePowerForTargetRPMWithVoltageCompensation(
+                        targetRPM, shooterRight.getVelocity(), currentVoltage, NOMINAL_VOLTAGE);
+
+                shooterLeft.setPower(powerLeft);
+                shooterRight.setPower(powerRight);
+
+                telemetry.addData("Shooter Power", String.format("%.2f / %.2f", powerLeft, powerRight));
+                // show actual encoder-based RPM for each motor
+                double rpmLeftActual = shooterLeft.getVelocity() * 60.0 / TICKS_PER_REV;
+                double rpmRightActual = shooterRight.getVelocity() * 60.0 / TICKS_PER_REV;
+                telemetry.addData("LeftRPM", (int)rpmLeftActual);
+                telemetry.addData("RightRPM", (int)rpmRightActual);
+                telemetry.addData("Battery Voltage", String.format("%.1f V", currentVoltage));
             }
-
-            if (gamepad2.dpad_down) Gate.setPosition(0.23);
-            if (gamepad2.dpad_up) Gate.setPosition(0.09);
-
-            PIDFCoefficients pidf = new PIDFCoefficients(P, I, D, F);
-            shooterLeft.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidf);
-            double ticksPerSec = (shooterOn && !shooterKilled) ? (targetRPM * TICKS_PER_REV / 60.0) : 0;
-            shooterLeft.setVelocity(ticksPerSec);
 
             updateTurretTracking();
             updateTelemetry();
