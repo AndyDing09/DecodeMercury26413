@@ -24,10 +24,8 @@ public final class MathLib {
     public static final double MAX_DRIVE_VELOCITY = 15.0;
 
     // interpolation tables originally captured from launcher testing
-    private static final double[] INPUT_MS = {-0.01, 0.0, 4.29, 4.76, 5.22, 5.65, 6.06, 6.48, 10.0};
-    private static final double[] OUTPUT_TICKS = {-0.01, 0.0, 1167.0, 1200.0, 1500.0, 1667.0, 1790.0, 1967.0, 2000.0};
-
-
+    private static final double [] INPUT_MS = {-0.01, 0.0, 7.376, 8.9408, 10.2819, 12.07, 13.4112, 14.5288, 15.42288};
+    private static final double[] OUTPUT_TICKS = {-0.01, 0.0, 933.33, 1166.67, 1400.0, 1633.33, 1866.667, 2100, 2240.0};
     /**
      * Given a horizontal {@code distance} in meters, compute the minimum launcher
      * velocity (m/s) and optimal hood angle (vertical degrees) required to hit the
