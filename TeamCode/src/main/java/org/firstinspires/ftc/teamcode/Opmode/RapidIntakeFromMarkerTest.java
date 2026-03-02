@@ -31,10 +31,10 @@ public class RapidIntakeFromMarkerTest extends LinearOpMode {
     // ══════════════════════════════════════════════════════════════
 
     /** Power applied to the drive motors while intaking (0.0 – 1.0) */
-    private static final double DRIVE_POWER = 0.4;
+    private static final double DRIVE_POWER = 0.2;
 
     /** How long (seconds) to drive + intake before stopping */
-    private static final double DRIVE_DURATION_SECS = 3.5;
+    private static final double DRIVE_DURATION_SECS = 3.0;
 
     /**
      * Direction to move while intaking.
