@@ -16,7 +16,7 @@ import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
  * Diagnostic test — drives 12 inches in the positive X-direction from (0,0).
  * No intake, no servos, just pure pathing.
  */
-@Autonomous(name = "Simple Move Test", group = "Testing")
+@Autonomous(name = "Simple Move Tests", group = "Testing")
 public class SimpleMoveTest extends LinearOpMode {
 
     private static final Pose START_POSE = new Pose(72, 72, Math.toRadians(0));
