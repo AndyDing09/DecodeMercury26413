@@ -32,6 +32,10 @@ public class Constants {
             .leftRearMotorDirection(DcMotorSimple.Direction.REVERSE)
             .rightFrontMotorDirection(DcMotorSimple.Direction.FORWARD)
             .rightRearMotorDirection(DcMotorSimple.Direction.FORWARD);
+
+    // ================================================================
+    // THIS MIGHT BE THE ISSUE: NO TRANSLATIONAL OR LATERAL HEADING COEFFICIENTS HERE
+    // ================================================================
     public static FollowerConstants followerConstants = new FollowerConstants()
             .mass(11.3);
 
