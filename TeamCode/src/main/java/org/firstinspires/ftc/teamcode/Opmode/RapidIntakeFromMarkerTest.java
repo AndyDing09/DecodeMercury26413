@@ -147,7 +147,7 @@ public class RapidIntakeFromMarkerTest extends LinearOpMode {
         // STEP 4: Stop everything
         // ══════════════════════════════════════════════════════════
         stopDrive();
-        middleTransfer.setPower(0);
+        // middleTransfer.setPower(0);
 
         telemetry.addLine("✅ Done — intake and drive stopped.");
         telemetry.update();

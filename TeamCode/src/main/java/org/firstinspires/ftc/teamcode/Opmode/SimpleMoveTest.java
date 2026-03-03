@@ -19,8 +19,8 @@ import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 @Autonomous(name = "Simple Move Tests", group = "Testing")
 public class SimpleMoveTest extends LinearOpMode {
 
-    private static final Pose START_POSE = new Pose(72, 72, Math.toRadians(0));
-    private static final Pose END_POSE   = new Pose(84, 72, Math.toRadians(0));
+    private static final Pose START_POSE = new Pose(72, 72, Math.toRadians(0)); // try 45
+    private static final Pose END_POSE   = new Pose(84, 72, Math.toRadians(0)); // try 45
 
     private Follower follower;
 
@@ -45,6 +45,12 @@ public class SimpleMoveTest extends LinearOpMode {
             telemetry.addData("X",   String.format("%.2f", follower.getPose().getX()));
             telemetry.addData("Y",   String.format("%.2f", follower.getPose().getY()));
             telemetry.addData("Heading", String.format("%.2f°", Math.toDegrees(follower.getPose().getHeading())));
+
+            // To check if theres some issue with coefficients
+            telemetry.addData("Drive Vector", follower.getDriveVector().toString());
+            telemetry.addData("Corrective Vector", follower.getCorrectiveVector().toString());
+            telemetry.addData("Heading Vector", follower.getHeadingVector().toString());
+
             telemetry.addData("Status", "DRIVING");
             telemetry.update();
         }
