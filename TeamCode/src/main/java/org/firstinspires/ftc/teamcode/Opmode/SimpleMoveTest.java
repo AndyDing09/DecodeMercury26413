@@ -19,8 +19,8 @@ import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 @Autonomous(name = "Simple Move Test", group = "Testing")
 public class SimpleMoveTest extends LinearOpMode {
 
-    private static final Pose START_POSE = new Pose(0, 0, Math.toRadians(0));
-    private static final Pose END_POSE   = new Pose(12, 0, Math.toRadians(0));
+    private static final Pose START_POSE = new Pose(72, 72, Math.toRadians(0));
+    private static final Pose END_POSE   = new Pose(84, 72, Math.toRadians(0));
 
     private Follower follower;
 
