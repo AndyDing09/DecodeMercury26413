@@ -32,12 +32,12 @@ public class shooterspeedTest extends LinearOpMode {
     // ================= CUSTOM PIDF VARIABLES =================
     // IMPORTANT: Custom PIDF outputs motor power (0.0 to 1.0).
     // These values will be much smaller than the built-in REV hub values!
-    private double kP = 0.0064;  // Gain has been tuned up with hardware.
-    private double kI = 0.00001;
-    private double kD = 0.0000;
+    private double kP_shooter = 0.0064;  // Gain has been tuned up with hardware.
+    private double kI_shooter = 0.00001;
+    private double kD_shooter = 0.0;
 
     // Unified feedforward for both motors to prevent lag
-    private double kF = 0.0007;
+    private double kF_shooter = 0.0007;
 
     // Controllers (one per motor)
     private PIDFMotorController leftController;
@@ -82,9 +82,9 @@ public class shooterspeedTest extends LinearOpMode {
 
         waitForStart();
 
-        // instantiate controllers using tuned gains and independent feed-forwards
-        leftController = new PIDFMotorController(kP, kI, kD, kF, TICKS_PER_REV);
-        rightController = new PIDFMotorController(kP, kI, kD, kF, TICKS_PER_REV);
+        // instantiate controllers using tuned gains and unified feed-forward
+        leftController = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_shooter, TICKS_PER_REV);
+        rightController = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_shooter, TICKS_PER_REV);
 
         while (opModeIsActive()) {
 
@@ -152,17 +152,17 @@ public class shooterspeedTest extends LinearOpMode {
 
             if (currentG2DpadUp && !lastG2DpadUp) {
                 switch(currentSelected) {
-                    case P: kP += increment; break;
-                    case I: kI += increment; break;
-                    case D: kD += increment; break;
-                    case F: kF += increment; break;
+                    case P: kP_shooter += increment; break;
+                    case I: kI_shooter += increment; break;
+                    case D: kD_shooter += increment; break;
+                    case F: kF_shooter += increment; break;
                 }
             } else if (currentG2DpadDown && !lastG2DpadDown) {
                 switch(currentSelected) {
-                    case P: kP -= increment; break;
-                    case I: kI -= increment; break;
-                    case D: kD -= increment; break;
-                    case F: kF -= increment; break;
+                    case P: kP_shooter -= increment; break;
+                    case I: kI_shooter -= increment; break;
+                    case D: kD_shooter -= increment; break;
+                    case F: kF_shooter -= increment; break;
                 }
             }
 
@@ -180,8 +180,8 @@ public class shooterspeedTest extends LinearOpMode {
                 shooterRight.setPower(0.0);
             } else {
                 // Apply live tunings (keeps controllers in sync with gamepad adjustments)
-                if (leftController != null) leftController.setTunings(kP, kI, kD, kF);
-                if (rightController != null) rightController.setTunings(kP, kI, kD, kF);
+                if (leftController != null) leftController.setTunings(kP_shooter, kI_shooter, kD_shooter, kF_shooter);
+                if (rightController != null) rightController.setTunings(kP_shooter, kI_shooter, kD_shooter, kF_shooter);
 
                 // Get current battery voltage for compensation
                 double currentVoltage = voltageSensor.getVoltage();
@@ -208,10 +208,10 @@ public class shooterspeedTest extends LinearOpMode {
 
             telemetry.addLine("--- PIDF TUNING ---");
             telemetry.addData("Selected", "-> " + currentSelected.name() + " <-");
-            telemetry.addData("kP", "%.5f %s", kP, currentSelected == TuneState.P ? "<--" : "");
-            telemetry.addData("kI", "%.5f %s", kI, currentSelected == TuneState.I ? "<--" : "");
-            telemetry.addData("kD", "%.5f %s", kD, currentSelected == TuneState.D ? "<--" : "");
-            telemetry.addData("kF", "%.5f %s", kF, currentSelected == TuneState.F ? "<--" : "");
+            telemetry.addData("kP_shooter", "%.5f %s", kP_shooter, currentSelected == TuneState.P ? "<--" : "");
+            telemetry.addData("kI_shooter", "%.5f %s", kI_shooter, currentSelected == TuneState.I ? "<--" : "");
+            telemetry.addData("kD_shooter", "%.5f %s", kD_shooter, currentSelected == TuneState.D ? "<--" : "");
+            telemetry.addData("kF_shooter", "%.5f %s", kF_shooter, currentSelected == TuneState.F ? "<--" : "");
             telemetry.addLine("(Hold G2 Left Bumper for finer increments. 'I' is 10x finer)");
             telemetry.addLine();
 
