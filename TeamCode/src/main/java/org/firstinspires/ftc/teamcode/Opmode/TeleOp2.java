@@ -82,14 +82,26 @@ public class TeleOp2 extends LinearOpMode {
     private double targetRPM = 0;
     private static final double TICKS_PER_REV = 28.0;
     private static final double NOMINAL_VOLTAGE = 12.0; // nominal battery voltage (12V)
+    private static final double MAX_SHOOTER_RPM = 4800.0; // maximum shooter speed
 
     // ================= PIDF (custom controller) =================
-    // Custom shooter PIDF (from shooterspeedTestV4)
-    private double kP_shooter = 0.0064;
-    private double kI_shooter = 0.00001;
-    private double kD_shooter = 0.0;
-    private double kF_Left = 0.0007;
-    private double kF_Right = 0.0002;
+    // PIDF for 2000-3500 RPM range
+    private double kP_shooter_low = 0.008;
+    private double kI_shooter_low = 0.00022;
+    private double kD_shooter_low = 0.0;
+    private double kF_shooter_low = 0.00580;
+
+    // PIDF for 3600+ RPM range
+    private double kP_shooter_high = 0.0086;
+    private double kI_shooter_high = 0.00176;
+    private double kD_shooter_high = 0.0006;
+    private double kF_shooter_high = 0.00470;
+
+    // Current active PIDF values (selected based on targetRPM)
+    private double kP_shooter;
+    private double kI_shooter;
+    private double kD_shooter;
+    private double kF_shooter;
 
     private PIDFMotorController leftController = null;
     private PIDFMotorController rightController = null;
@@ -154,8 +166,8 @@ public class TeleOp2 extends LinearOpMode {
         if (AUTO_CENTER_ON_INIT) centerTurret();
 
         // instantiate custom PIDF controllers for shooters
-        leftController = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_Left, TICKS_PER_REV);
-        rightController = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_Right, TICKS_PER_REV);
+        leftController = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_shooter, TICKS_PER_REV);
+        rightController = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_shooter, TICKS_PER_REV);
 
         while (opModeIsActive()) {
             // RESET TURRET ENCODER
@@ -212,14 +224,14 @@ public class TeleOp2 extends LinearOpMode {
                 // left bumper sets high speed
                 shooterOn = true;
                 shooterKilled = false;
-                targetRPM = 6000;               // 6000 RPM demand
+                targetRPM = MAX_SHOOTER_RPM;  // 4800 RPM (max speed)
                 Gate.setPosition(0.27);
             }
             if (rb && !lastRightBumper) {
                 // right bumper sets lower speed
                 shooterOn = true;
                 shooterKilled = false;
-                targetRPM = 3000;               // 3000 RPM demand
+                targetRPM = Math.min(3000, MAX_SHOOTER_RPM);  // capped at max shooter RPM
                 Gate.setPosition(0.27);
             }
 
@@ -239,9 +251,22 @@ public class TeleOp2 extends LinearOpMode {
                 if (leftController != null) leftController.reset();
                 if (rightController != null) rightController.reset();
             } else {
-                // update tunings live (allows in-match adjustment if needed)
-                if (leftController != null) leftController.setTunings(kP_shooter, kI_shooter, kD_shooter, kF_Left);
-                if (rightController != null) rightController.setTunings(kP_shooter, kI_shooter, kD_shooter, kF_Right);
+                // Select PIDF tuning based on target RPM
+                if (targetRPM >= 3600) {
+                    kP_shooter = kP_shooter_high;
+                    kI_shooter = kI_shooter_high;
+                    kD_shooter = kD_shooter_high;
+                    kF_shooter = kF_shooter_high;
+                } else {
+                    kP_shooter = kP_shooter_low;
+                    kI_shooter = kI_shooter_low;
+                    kD_shooter = kD_shooter_low;
+                    kF_shooter = kF_shooter_low;
+                }
+
+                // update tunings live with selected PIDF set
+                if (leftController != null) leftController.setTunings(kP_shooter, kI_shooter, kD_shooter, kF_shooter);
+                if (rightController != null) rightController.setTunings(kP_shooter, kI_shooter, kD_shooter, kF_shooter);
 
                 // Get current battery voltage for compensation
                 double currentVoltage = voltageSensor.getVoltage();

@@ -33,7 +33,7 @@ public class Constants {
             .rightFrontMotorDirection(DcMotorSimple.Direction.FORWARD)
             .rightRearMotorDirection(DcMotorSimple.Direction.FORWARD);
     public static FollowerConstants followerConstants = new FollowerConstants()
-            .mass(11.068);
+            .mass(11.3);
 
     public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 1, 1);
 
