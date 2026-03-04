@@ -55,14 +55,16 @@ public class Auto_nomous extends LinearOpMode {
     // =======================
     // Poses (from existing auto)
     // =======================
-    private final Pose startPose = new Pose(120, 120, Math.toRadians(45));
-    private final Pose shootPose = new Pose(84, 84,  Math.toRadians(45));
+    private final Pose startPose    = new Pose(120, 120, Math.toRadians(45));
+    private final Pose shootPose    = new Pose(84, 84,  Math.toRadians(45));
+    private final Pose pickupPose2  = new Pose(60, 102, Math.toRadians(90));
 
     // =======================
     // PedroPathing
     // =======================
     private Follower follower;
     private PathChain toShoot;
+    private PathChain toPickup2;
 
     // =======================
     // State Machine
@@ -119,6 +121,11 @@ public class Auto_nomous extends LinearOpMode {
         toShoot = follower.pathBuilder()
                 .addPath(new BezierLine(startPose, shootPose))
                 .setLinearHeadingInterpolation(startPose.getHeading(), shootPose.getHeading())
+                .build();
+
+        toPickup2 = follower.pathBuilder()
+                .addPath(new BezierLine(shootPose, pickupPose2))
+                .setLinearHeadingInterpolation(shootPose.getHeading(), pickupPose2.getHeading())
                 .build();
 
         telemetry.addLine("✅ Initialized — waiting for start");
@@ -196,6 +203,18 @@ public class Auto_nomous extends LinearOpMode {
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME) {
                     Gate.setPosition(GATE_CLOSED);
                     middleTransfer.setPower(0); // stop transfer when done shooting
+                    shooterLeft.setPower(0);
+                    shooterRight.setPower(0);
+                    leftController.reset();
+                    rightController.reset();
+                    follower.followPath(toPickup2, true);
+                    setState(4);
+                }
+                break;
+
+            // STATE 4: Wait for robot to reach pickupPose2
+            case 4:
+                if (!follower.isBusy()) {
                     setState(-1); // Done
                 }
                 break;
