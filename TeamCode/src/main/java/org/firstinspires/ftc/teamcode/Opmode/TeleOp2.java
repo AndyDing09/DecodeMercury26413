@@ -36,29 +36,30 @@ public class TeleOp2 extends LinearOpMode {
 
     // DUAL-MODE PID: Aggressive Acquisition + Gentle Hold
     // ACQUISITION MODE (fast catch, accepts some overshoot)
-    private static final double kP_acquire = 0.015;
-    private static final double kD_acquire = 0.004;
-    private static final double kF_acquire = 0.1;
+    private static final double kP_acquire = 0.03;
+    private static final double kD_acquire = 0.06;
+    private static final double kF_acquire = 0.01;
 
     // HOLD MODE (smooth, no jitter)
-    private static final double kP_hold = 0.008;
-    private static final double kD_hold = 0.001;
-    private static final double kF_hold = 0.05;
+    private static final double kP_hold = 0.018;
+    private static final double kD_hold = 0.045;
+    private static final double kF_hold = 0.0;
 
     private static final double ACQUIRE_THRESHOLD = 8.0; // Switch modes at 8° error
     private static final double HOLD_THRESHOLD = 2.0;    // Tight deadzone when locked
     private static final double MAX_TURRET_POWER = 0.8;
 
     // Fast sweep power when searching
-    private static final double FAST_SEARCH_POWER = 0.51; // Increased for max speed
-    private static final double DEADZONE_DEGREES = 3.0;
+    private static final double FAST_SEARCH_POWER = 0.6; // Scanner speed
+    private static final double DEADZONE_DEGREES = 1.5;
+    private static final int TARGET_LOSS_THRESHOLD = 3;  // Frames before declaring target lost (debounce)
 
     // ================= TURRET LIMITS =================
-    private static final int LEFT_LIMIT = -655;
-    private static final int RIGHT_LIMIT = 700;
-    private static final int CENTER_POSITION = 0;
+    private static final int LEFT_LIMIT = -347;
+    private static final int RIGHT_LIMIT = 550;
+    private static final int CENTER_POSITION = 93;
 
-    private static final boolean AUTO_CENTER_ON_INIT = false;
+    private static final boolean AUTO_CENTER_ON_INIT = true;
     private static final double INIT_POWER = 0.3;
     private static final int INIT_TOLERANCE = 20;
 
@@ -69,6 +70,7 @@ public class TeleOp2 extends LinearOpMode {
     private boolean turretInitialized = false;
     private boolean wasSearching = false;
     private int framesOnTarget = 0;
+    private int framesWithoutTarget = 0;  // Debounce target loss
 
     // ================= INTAKE =================
     private boolean intakeOn = false;
@@ -86,16 +88,16 @@ public class TeleOp2 extends LinearOpMode {
 
     // ================= PIDF (custom controller) =================
     // PIDF for 2000-3500 RPM range
-    private double kP_shooter_low = 0.008;
-    private double kI_shooter_low = 0.00022;
-    private double kD_shooter_low = 0.0;
-    private double kF_shooter_low = 0.00580;
+    private double kP_shooter_low = 0.006;
+    private double kI_shooter_low = 0.0005;
+    private double kD_shooter_low = 0.0002;
+    private double kF_shooter_low = 0.00620;
 
     // PIDF for 3600+ RPM range
-    private double kP_shooter_high = 0.0086;
-    private double kI_shooter_high = 0.00176;
-    private double kD_shooter_high = 0.0006;
-    private double kF_shooter_high = 0.00470;
+    private double kP_shooter_high = 0.007;
+    private double kI_shooter_high = 0.0008;
+    private double kD_shooter_high = 0.0003;
+    private double kF_shooter_high = 0.00520;
 
     // Current active PIDF values (selected based on targetRPM)
     private double kP_shooter;
@@ -161,9 +163,10 @@ public class TeleOp2 extends LinearOpMode {
         telemetry.addLine("Press Gamepad2 A to reset turret encoder");
         telemetry.addLine("Press Gamepad2 X to toggle auto-tracking");
         telemetry.update();
-        waitForStart();
 
         if (AUTO_CENTER_ON_INIT) centerTurret();
+
+        waitForStart();
 
         // instantiate custom PIDF controllers for shooters
         leftController = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_shooter, TICKS_PER_REV);
@@ -231,7 +234,7 @@ public class TeleOp2 extends LinearOpMode {
                 // right bumper sets lower speed
                 shooterOn = true;
                 shooterKilled = false;
-                targetRPM = Math.min(3000, MAX_SHOOTER_RPM);  // capped at max shooter RPM
+                targetRPM = 3000;
                 Gate.setPosition(0.27);
             }
 
@@ -315,6 +318,7 @@ public class TeleOp2 extends LinearOpMode {
         if (gamepad2.cross) {
             autoTrackEnabled = !autoTrackEnabled;
             lastError = 0;
+            framesWithoutTarget = 0;
             framesOnTarget = 0;
             wasSearching = false;
             sleep(200);
@@ -330,6 +334,7 @@ public class TeleOp2 extends LinearOpMode {
             mode = "MANUAL";
             outputPower = gamepad2.right_stick_x * 0.5;
             autoTrackEnabled = false;
+            framesWithoutTarget = 0;
             framesOnTarget = 0;
             wasSearching = false;
         }
@@ -337,13 +342,13 @@ public class TeleOp2 extends LinearOpMode {
         else if (autoTrackEnabled && result != null && result.isValid()) {
             double tx = result.getTx();
             double absTx = Math.abs(tx);
+            framesWithoutTarget = 0;  // Reset debounce counter on valid target
 
-            // IMMEDIATE BRAKE on first detection
+            // SMOOTH transition on first detection (no harsh brake)
             if (wasSearching) {
-                turretMotor.setPower(0);
-                sleep(80); // Kill momentum
                 wasSearching = false;
                 framesOnTarget = 0;
+                // Let PID controller gradually reduce power instead of hard stop
             }
 
             // Choose PID gains based on error size
@@ -366,11 +371,11 @@ public class TeleOp2 extends LinearOpMode {
 
             // Only apply power outside deadzone
             if (absTx > DEADZONE_DEGREES) {
-                outputPower = (kP * tx) + (kD * (tx - lastError));
+                outputPower = -((kP * tx) + (kD * (tx - lastError)));
 
                 // Feed-forward only in acquisition mode
                 if (absTx > ACQUIRE_THRESHOLD && Math.abs(outputPower) < kF) {
-                    outputPower = Math.signum(outputPower) * kF;
+                    outputPower = -Math.signum(tx) * kF;
                 }
             } else {
                 // Within deadzone AND stable for 5+ frames = perfect lock
@@ -382,24 +387,32 @@ public class TeleOp2 extends LinearOpMode {
 
             lastError = tx;
         }
-        // 3. FAST SEARCH
+        // 3. FAST SEARCH (or debouncing target loss)
         else if (autoTrackEnabled) {
-            mode = "SEARCHING";
-            lastError = 0;
-            wasSearching = true;
-            framesOnTarget = 0;
+            framesWithoutTarget++;
 
-            // Reverse at limits
-            if (currentPos >= RIGHT_LIMIT) {
-                scanningRight = true;
-            } else if (currentPos <= LEFT_LIMIT) {
-                scanningRight = false;
+            // If we just lost target, wait a few frames before searching
+            if (framesWithoutTarget < TARGET_LOSS_THRESHOLD) {
+                mode = "DEBOUNCE (lost target)";
+                outputPower = 0; // Coast to a stop gently
+            } else {
+                mode = "SEARCHING";
+                lastError = 0;
+                wasSearching = true;
+                framesOnTarget = 0;
+
+                // Reverse at limits
+                if (currentPos >= RIGHT_LIMIT) {
+                    scanningRight = false;  // Switch direction when hitting limit
+                } else if (currentPos <= LEFT_LIMIT) {
+                    scanningRight = true;   // Switch direction when hitting limit
+                }
+
+                // FULL SPEED search
+                double searchPower = FAST_SEARCH_POWER;
+                outputPower = scanningRight ? searchPower : -searchPower;
+                mode += scanningRight ? " →" : " ←";
             }
-
-            // FULL SPEED search (tune up to MAX_TURRET_POWER if needed)
-            double searchPower = FAST_SEARCH_POWER;
-            outputPower = scanningRight ? searchPower : -searchPower;
-            mode += scanningRight ? " →" : " ←";
         }
 
         // Clamp power
