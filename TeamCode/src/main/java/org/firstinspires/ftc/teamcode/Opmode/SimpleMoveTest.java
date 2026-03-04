@@ -5,6 +5,7 @@ import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.Path;
 
+import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
@@ -30,8 +31,14 @@ public class SimpleMoveTest extends LinearOpMode {
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(START_POSE);
 
-        Path driveForward = new Path(new BezierLine(START_POSE, END_POSE));
-        driveForward.setConstantHeadingInterpolation(Math.toRadians(0));
+        // Path driveForward = new Path(new BezierLine(START_POSE, END_POSE));
+        // driveForward.setConstantHeadingInterpolation(Math.toRadians(0));
+
+        PathChain driveForward = follower.pathBuilder()
+                .addPath(new BezierLine(START_POSE, END_POSE))
+                .setConstantHeadingInterpolation(0)
+                .build();
+
 
         telemetry.addLine("✅ Ready — press Start to drive 12 inches forward");
         telemetry.update();
