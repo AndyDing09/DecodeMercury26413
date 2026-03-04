@@ -35,7 +35,7 @@ public class Auto_nomous extends LinearOpMode {
     // =======================
     private static final double TICKS_PER_REV    = 28.0;
     private static final double NOMINAL_VOLTAGE  = 12.0;
-    private static final double TARGET_RPM       = 3000; // "low" speed from TeleOp right bumper
+    private static final double TARGET_RPM       = 2500; // "low" speed from TeleOp right bumper
 
     // PIDF coefficients - LOW range (from TeleOp)
     private static final double kP_shooter = 0.006;
