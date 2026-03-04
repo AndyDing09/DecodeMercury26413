@@ -15,7 +15,6 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
-import org.firstinspires.ftc.teamcode.Opmode.RapidIntakeFromMarkerTest;
 import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 import org.firstinspires.ftc.teamcode.testing.PIDFMotorController;
 
@@ -37,8 +36,8 @@ public class Auto_nomous extends LinearOpMode {
     // =======================
     private static final double TICKS_PER_REV      = 28.0;
     private static final double NOMINAL_VOLTAGE    = 12.0;
-    private static final double TARGET_RPM_INITIAL = 1560; // used for first shoot only
-    private static final double TARGET_RPM_FUTURE  = 2100; // used for all subsequent shoots
+    private static final double TARGET_RPM_INITIAL = 1550;
+    private static final double TARGET_RPM_FUTURE  = 2025;
 
     private static final double kP_shooter = 0.006;
     private static final double kI_shooter = 0.0005;
@@ -58,24 +57,19 @@ public class Auto_nomous extends LinearOpMode {
     private static final double GATE_OPEN   = 0.27;
 
     // =======================
-    // Rapid Intake Constants
+    // Intake Constants
     // =======================
-    private static final double SERVO_HOME            = 0.5;
-    private static final double SERVO_EXTENDED        = 0.0;
-    private static final double INTAKE_DRIVE_POWER    = 0.5;
-    private static final double INTAKE_DRIVE_DURATION = 1.2;
-    private static final double TRANSFER_RESET_DELAY  = 0.40;
-
-    private static final RapidIntakeFromMarkerTest.DriveDirection DRIVE_DIRECTION =
-            RapidIntakeFromMarkerTest.DriveDirection.FORWARD;
+    private static final double SERVO_HOME           = 0.5;
+    private static final double SERVO_EXTENDED       = 0.0;
+    private static final double TRANSFER_RESET_DELAY = 0.35;
 
     // =======================
     // Poses
     // =======================
     private final Pose startPose    = new Pose(124, 124, Math.toRadians(45));
     private final Pose shootPose    = new Pose(96,  96,  Math.toRadians(45));
-    private final Pose pickupPose2  = new Pose(103, 62,  Math.toRadians(0));
-    private final Pose afterIntake1 = new Pose(132, 64,  Math.toRadians(0));
+    private final Pose pickupPose2  = new Pose(100, 61.5,  Math.toRadians(0));
+    private final Pose afterIntake1 = new Pose(132, 61.5,  Math.toRadians(0));
 
     // =======================
     // PedroPathing
@@ -83,6 +77,7 @@ public class Auto_nomous extends LinearOpMode {
     private Follower follower;
     private PathChain toShoot;
     private PathChain toPickup2;
+    private PathChain toAfterIntake1;
     private PathChain toShoot2;
 
     // =======================
@@ -92,11 +87,9 @@ public class Auto_nomous extends LinearOpMode {
     private int state = 0;
 
     private static final double SPINUP_TIME_1 = 0.375;
-    private static final double SPINUP_TIME_2 = 1.35;
+    private static final double SPINUP_TIME_2 = 0.85;
     private static final double SHOOT_TIME_1  = 0.5;
     private static final double SHOOT_TIME_2  = 1.0;
-
-    private boolean pedroActive = true;
 
     @Override
     public void runOpMode() {
@@ -155,6 +148,12 @@ public class Auto_nomous extends LinearOpMode {
                 .setLinearHeadingInterpolation(shootPose.getHeading(), pickupPose2.getHeading())
                 .build();
 
+        // Intake drive: Pedro follows from pickupPose2 to afterIntake1 while intake runs
+        toAfterIntake1 = follower.pathBuilder()
+                .addPath(new BezierLine(pickupPose2, afterIntake1))
+                .setLinearHeadingInterpolation(pickupPose2.getHeading(), afterIntake1.getHeading())
+                .build();
+
         toShoot2 = follower.pathBuilder()
                 .addPath(new BezierLine(afterIntake1, shootPose))
                 .setLinearHeadingInterpolation(afterIntake1.getHeading(), shootPose.getHeading())
@@ -168,9 +167,7 @@ public class Auto_nomous extends LinearOpMode {
         setState(0);
 
         while (opModeIsActive()) {
-            if (pedroActive) {
-                follower.update();
-            }
+            follower.update();
             updateShooter();
             updateStateMachine();
 
@@ -191,7 +188,6 @@ public class Auto_nomous extends LinearOpMode {
         shooterRight.setPower(0);
         middleTransfer.setPower(0);
         Gate.setPosition(GATE_CLOSED);
-        stopDrive();
     }
 
     // ── Shooter PIDF update — uses activeTargetRPM ─────────────────────────
@@ -234,7 +230,7 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // STATE 3: Shoot, then close gate — swap to future RPM and drive to pickup
+            // STATE 3: Shoot, then close gate and drive to pickup
             case 3:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_1) {
                     Gate.setPosition(GATE_CLOSED);
@@ -259,22 +255,18 @@ public class Auto_nomous extends LinearOpMode {
             // STATE 5: Brief pause after resetting transfer servo
             case 5:
                 if (actionTimer.getElapsedTimeSeconds() >= TRANSFER_RESET_DELAY) {
+                    // Start intake, swap to future RPM, then let Pedro drive to afterIntake1
                     middleTransfer.setPower(1.0);
-                    pedroActive = false;
-                    setDrivePower(DRIVE_DIRECTION, INTAKE_DRIVE_POWER);
-                    // First shot done — switch to future RPM for all remaining shots
                     activeTargetRPM = TARGET_RPM_FUTURE;
+                    follower.followPath(toAfterIntake1, true);
                     setState(6);
                 }
                 break;
 
-            // STATE 6: Drive + intake for INTAKE_DRIVE_DURATION seconds
+            // STATE 6: Wait to arrive at afterIntake1 (intake runs the whole time)
             case 6:
-                if (actionTimer.getElapsedTimeSeconds() >= INTAKE_DRIVE_DURATION) {
-                    stopDrive();
+                if (!follower.isBusy()) {
                     middleTransfer.setPower(0);
-                    pedroActive = true;
-                    follower.setPose(afterIntake1);
                     follower.followPath(toShoot2, true);
                     setState(7);
                 }
@@ -324,42 +316,5 @@ public class Auto_nomous extends LinearOpMode {
     private void setState(int newState) {
         state = newState;
         actionTimer.resetTimer();
-    }
-
-    // ── Drive Helpers ──────────────────────────────────────────────────────
-
-    private void setDrivePower(RapidIntakeFromMarkerTest.DriveDirection direction, double power) {
-        double fl, bl, fr, br;
-
-        switch (direction) {
-            case FORWARD:
-                fl =  power; bl =  power;
-                fr =  power; br =  power;
-                break;
-            case STRAFE_LEFT:
-                fl = -power; bl =  power;
-                fr =  power; br = -power;
-                break;
-            case STRAFE_RIGHT:
-                fl =  power; bl = -power;
-                fr = -power; br =  power;
-                break;
-            case NONE:
-            default:
-                fl = 0; bl = 0; fr = 0; br = 0;
-                break;
-        }
-
-        frontLeftDrive.setPower(fl);
-        backLeftDrive.setPower(bl);
-        frontRightDrive.setPower(fr);
-        backRightDrive.setPower(br);
-    }
-
-    private void stopDrive() {
-        frontLeftDrive.setPower(0);
-        backLeftDrive.setPower(0);
-        frontRightDrive.setPower(0);
-        backRightDrive.setPower(0);
     }
 }
