@@ -74,13 +74,13 @@ public class ArnieautocloseredPathing extends LinearOpMode {
 
     private final Pose startPose         = new Pose(120, 120, Math.toRadians(45));
     private final Pose shootPose         = new Pose(84, 84, Math.toRadians(45));
-    private final Pose pickupPose1       = new Pose(102, 84, Math.toRadians(90));
-    private final Pose pickupPose2       = new Pose(102, 60, Math.toRadians(90));
-    private final Pose pickupPose3       = new Pose(102, 36, Math.toRadians(90));
-    private final Pose PreclearPose      = new Pose(120, 72, Math.toRadians(90));
-    private final Pose clearPose         = new Pose(132, 72, Math.toRadians(90));
-    private final Pose PickfromclearPose = new Pose(134, 56, Math.toRadians(30));
-    private final Pose parkPose          = new Pose(120, 72, Math.toRadians(0));
+    private final Pose pickupPose1       = new Pose(84, 102, Math.toRadians(90));
+    private final Pose pickupPose2       = new Pose(60, 102, Math.toRadians(90));
+    private final Pose pickupPose3       = new Pose(36, 102, Math.toRadians(90));
+    private final Pose PreclearPose      = new Pose(72, 120, Math.toRadians(90));
+    private final Pose clearPose         = new Pose(72, 128, Math.toRadians(90));
+    private final Pose PickfromclearPose = new Pose(56, 134, Math.toRadians(30));
+    private final Pose parkPose          = new Pose(72, 122, Math.toRadians(0));
 
 
     // Paths
