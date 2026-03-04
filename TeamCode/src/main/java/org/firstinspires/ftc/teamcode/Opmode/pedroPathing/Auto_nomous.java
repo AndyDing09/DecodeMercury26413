@@ -35,9 +35,10 @@ public class Auto_nomous extends LinearOpMode {
     // =======================
     // Shooter Constants
     // =======================
-    private static final double TICKS_PER_REV   = 28.0;
-    private static final double NOMINAL_VOLTAGE = 12.0;
-    private static final double TARGET_RPM      = 1525;
+    private static final double TICKS_PER_REV      = 28.0;
+    private static final double NOMINAL_VOLTAGE    = 12.0;
+    private static final double TARGET_RPM_INITIAL = 1560; // used for first shoot only
+    private static final double TARGET_RPM_FUTURE  = 2100; // used for all subsequent shoots
 
     private static final double kP_shooter = 0.006;
     private static final double kI_shooter = 0.0005;
@@ -46,6 +47,9 @@ public class Auto_nomous extends LinearOpMode {
 
     private PIDFMotorController leftController;
     private PIDFMotorController rightController;
+
+    // Active RPM target — starts at initial, swapped to future after first shot
+    private double activeTargetRPM = TARGET_RPM_INITIAL;
 
     // =======================
     // Gate Positions
@@ -58,8 +62,8 @@ public class Auto_nomous extends LinearOpMode {
     // =======================
     private static final double SERVO_HOME            = 0.5;
     private static final double SERVO_EXTENDED        = 0.0;
-    private static final double INTAKE_DRIVE_POWER    = 0.55;
-    private static final double INTAKE_DRIVE_DURATION = 1.0;
+    private static final double INTAKE_DRIVE_POWER    = 0.5;
+    private static final double INTAKE_DRIVE_DURATION = 1.2;
     private static final double TRANSFER_RESET_DELAY  = 0.40;
 
     private static final RapidIntakeFromMarkerTest.DriveDirection DRIVE_DIRECTION =
@@ -68,10 +72,10 @@ public class Auto_nomous extends LinearOpMode {
     // =======================
     // Poses
     // =======================
-    private final Pose startPose   = new Pose(124, 124, Math.toRadians(45));
-    private final Pose shootPose   = new Pose(96,  96,  Math.toRadians(45));
-    private final Pose pickupPose2 = new Pose(103, 61,  Math.toRadians(0));
-    private final Pose afterIntake1 = new Pose(128, 67,  Math.toRadians(0));
+    private final Pose startPose    = new Pose(124, 124, Math.toRadians(45));
+    private final Pose shootPose    = new Pose(96,  96,  Math.toRadians(45));
+    private final Pose pickupPose2  = new Pose(103, 62,  Math.toRadians(0));
+    private final Pose afterIntake1 = new Pose(132, 64,  Math.toRadians(0));
 
     // =======================
     // PedroPathing
@@ -87,12 +91,11 @@ public class Auto_nomous extends LinearOpMode {
     private final Timer actionTimer = new Timer();
     private int state = 0;
 
-    private static final double SPINUP_TIME_1 = 0.35;
+    private static final double SPINUP_TIME_1 = 0.375;
     private static final double SPINUP_TIME_2 = 1.35;
     private static final double SHOOT_TIME_1  = 0.5;
     private static final double SHOOT_TIME_2  = 1.0;
 
-    // Whether Pedro should be updating (disabled during manual drive states)
     private boolean pedroActive = true;
 
     @Override
@@ -178,7 +181,7 @@ public class Auto_nomous extends LinearOpMode {
             double rpmR = shooterRight.getVelocity() * 60.0 / TICKS_PER_REV;
             telemetry.addData("Left RPM",  (int) rpmL);
             telemetry.addData("Right RPM", (int) rpmR);
-            telemetry.addData("Target RPM", (int) TARGET_RPM);
+            telemetry.addData("Target RPM", (int) activeTargetRPM);
             telemetry.addData("Battery", String.format("%.1f V", voltageSensor.getVoltage()));
             telemetry.update();
         }
@@ -191,13 +194,13 @@ public class Auto_nomous extends LinearOpMode {
         stopDrive();
     }
 
-    // ── Shooter PIDF update (called every loop) ────────────────────────────
+    // ── Shooter PIDF update — uses activeTargetRPM ─────────────────────────
     private void updateShooter() {
         double voltage = voltageSensor.getVoltage();
         double powerL  = leftController.computePowerForTargetRPMWithVoltageCompensation(
-                TARGET_RPM, shooterLeft.getVelocity(), voltage, NOMINAL_VOLTAGE);
+                activeTargetRPM, shooterLeft.getVelocity(), voltage, NOMINAL_VOLTAGE);
         double powerR  = rightController.computePowerForTargetRPMWithVoltageCompensation(
-                TARGET_RPM, shooterRight.getVelocity(), voltage, NOMINAL_VOLTAGE);
+                activeTargetRPM, shooterRight.getVelocity(), voltage, NOMINAL_VOLTAGE);
         shooterLeft.setPower(powerL);
         shooterRight.setPower(powerR);
     }
@@ -206,10 +209,11 @@ public class Auto_nomous extends LinearOpMode {
     private void updateStateMachine() {
         switch (state) {
 
-            // ── FIRST SHOOT CYCLE ─────────────────────────────────────────
+            // ── FIRST SHOOT CYCLE (TARGET_RPM_INITIAL) ────────────────────
 
-            // STATE 0: Start shooter, begin driving to shoot pose
+            // STATE 0: Start shooter at initial RPM, begin driving to shoot pose
             case 0:
+                activeTargetRPM = TARGET_RPM_INITIAL;
                 follower.followPath(toShoot, true);
                 setState(1);
                 break;
@@ -230,13 +234,11 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // STATE 3: Shoot, then close gate and drive to pickup
+            // STATE 3: Shoot, then close gate — swap to future RPM and drive to pickup
             case 3:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_1) {
                     Gate.setPosition(GATE_CLOSED);
                     middleTransfer.setPower(0);
-                    shooterLeft.setPower(0);
-                    shooterRight.setPower(0);
                     leftController.reset();
                     rightController.reset();
                     follower.followPath(toPickup2, true);
@@ -258,8 +260,10 @@ public class Auto_nomous extends LinearOpMode {
             case 5:
                 if (actionTimer.getElapsedTimeSeconds() >= TRANSFER_RESET_DELAY) {
                     middleTransfer.setPower(1.0);
-                    pedroActive = false; // hand off drive control to manual
+                    pedroActive = false;
                     setDrivePower(DRIVE_DIRECTION, INTAKE_DRIVE_POWER);
+                    // First shot done — switch to future RPM for all remaining shots
+                    activeTargetRPM = TARGET_RPM_FUTURE;
                     setState(6);
                 }
                 break;
@@ -269,7 +273,6 @@ public class Auto_nomous extends LinearOpMode {
                 if (actionTimer.getElapsedTimeSeconds() >= INTAKE_DRIVE_DURATION) {
                     stopDrive();
                     middleTransfer.setPower(0);
-                    // Hand drive back to Pedro and tell it where we ended up
                     pedroActive = true;
                     follower.setPose(afterIntake1);
                     follower.followPath(toShoot2, true);
@@ -277,7 +280,7 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // ── SECOND SHOOT CYCLE ────────────────────────────────────────
+            // ── SECOND SHOOT CYCLE (TARGET_RPM_FUTURE) ────────────────────
 
             // STATE 7: Wait to arrive back at shoot pose
             case 7:
