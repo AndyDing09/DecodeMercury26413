@@ -18,13 +18,14 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 import org.firstinspires.ftc.teamcode.testing.PIDFMotorController;
 
-@Autonomous(name = "ArnieAutoSimpleShoot", group = "Auto")
+@Autonomous(name = "Autonomous", group = "Auto")
 public class Auto_nomous extends LinearOpMode {
 
     // =======================
     // Hardware
     // =======================
     private DcMotor frontLeftDrive, backLeftDrive, frontRightDrive, backRightDrive;
+    private DcMotor middleTransfer; // intake/transfer motor — also feeds balls to shooter
     private DcMotorEx shooterLeft, shooterRight;
     private VoltageSensor voltageSensor;
     private Servo Gate;
@@ -88,6 +89,10 @@ public class Auto_nomous extends LinearOpMode {
         frontRightDrive.setDirection(DcMotor.Direction.FORWARD);
         backRightDrive.setDirection(DcMotor.Direction.FORWARD);
 
+        // middleTransfer doubles as intake and transfer feed to shooter
+        middleTransfer = hardwareMap.get(DcMotor.class, "middleTransfer");
+        middleTransfer.setDirection(DcMotor.Direction.FORWARD);
+
         shooterLeft  = hardwareMap.get(DcMotorEx.class, "shooterLeft");
         shooterRight = hardwareMap.get(DcMotorEx.class, "shooterRight");
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
@@ -143,6 +148,7 @@ public class Auto_nomous extends LinearOpMode {
         // Cleanup on stop
         shooterLeft.setPower(0);
         shooterRight.setPower(0);
+        middleTransfer.setPower(0);
         Gate.setPosition(GATE_CLOSED);
     }
 
@@ -176,26 +182,29 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // STATE 2: 1s spinup hold (shooter was already spinning during the drive)
+            // STATE 2: 1s spinup hold — then open gate AND start transfer to feed balls
             case 2:
                 if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME) {
                     Gate.setPosition(GATE_OPEN);
+                    middleTransfer.setPower(1.0); // run transfer to feed balls into shooter
                     setState(3);
                 }
                 break;
 
-            // STATE 3: Gate open — shoot until time elapses
+            // STATE 3: Gate open + transfer running — shoot until time elapses
             case 3:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME) {
                     Gate.setPosition(GATE_CLOSED);
+                    middleTransfer.setPower(0); // stop transfer when done shooting
                     setState(-1); // Done
                 }
                 break;
 
             default:
-                // Idle / done — cut shooter power
+                // Idle / done — cut shooter and transfer power
                 shooterLeft.setPower(0);
                 shooterRight.setPower(0);
+                middleTransfer.setPower(0);
                 leftController.reset();
                 rightController.reset();
                 break;
