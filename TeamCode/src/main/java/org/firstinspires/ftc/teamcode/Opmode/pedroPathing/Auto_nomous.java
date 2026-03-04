@@ -15,6 +15,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
+import org.firstinspires.ftc.teamcode.Opmode.RapidIntakeFromMarkerTest;
 import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 import org.firstinspires.ftc.teamcode.testing.PIDFMotorController;
 
@@ -25,19 +26,19 @@ public class Auto_nomous extends LinearOpMode {
     // Hardware
     // =======================
     private DcMotor frontLeftDrive, backLeftDrive, frontRightDrive, backRightDrive;
-    private DcMotor middleTransfer; // intake/transfer motor — also feeds balls to shooter
+    private DcMotor middleTransfer;
     private DcMotorEx shooterLeft, shooterRight;
     private VoltageSensor voltageSensor;
     private Servo Gate;
+    private Servo transferBlocker;
 
     // =======================
-    // Shooter Constants (from TeleOp - LOW range settings)
+    // Shooter Constants
     // =======================
-    private static final double TICKS_PER_REV    = 28.0;
-    private static final double NOMINAL_VOLTAGE  = 12.0;
-    private static final double TARGET_RPM       = 2500; // "low" speed from TeleOp right bumper
+    private static final double TICKS_PER_REV   = 28.0;
+    private static final double NOMINAL_VOLTAGE = 12.0;
+    private static final double TARGET_RPM      = 1525;
 
-    // PIDF coefficients - LOW range (from TeleOp)
     private static final double kP_shooter = 0.006;
     private static final double kI_shooter = 0.0005;
     private static final double kD_shooter = 0.0002;
@@ -47,17 +48,30 @@ public class Auto_nomous extends LinearOpMode {
     private PIDFMotorController rightController;
 
     // =======================
-    // Gate Positions (from TeleOp)
+    // Gate Positions
     // =======================
-    private static final double GATE_CLOSED = 0.5;   // Gate closed (safe/idle position)
-    private static final double GATE_OPEN   = 0.27;  // Gate open (shooting position)
+    private static final double GATE_CLOSED = 0.5;
+    private static final double GATE_OPEN   = 0.27;
 
     // =======================
-    // Poses (from existing auto)
+    // Rapid Intake Constants
     // =======================
-    private final Pose startPose    = new Pose(120, 120, Math.toRadians(45));
-    private final Pose shootPose    = new Pose(84, 84,  Math.toRadians(45));
-    private final Pose pickupPose2  = new Pose(60, 102, Math.toRadians(90));
+    private static final double SERVO_HOME            = 0.5;
+    private static final double SERVO_EXTENDED        = 0.0;
+    private static final double INTAKE_DRIVE_POWER    = 0.55;
+    private static final double INTAKE_DRIVE_DURATION = 1.0;
+    private static final double TRANSFER_RESET_DELAY  = 0.40;
+
+    private static final RapidIntakeFromMarkerTest.DriveDirection DRIVE_DIRECTION =
+            RapidIntakeFromMarkerTest.DriveDirection.FORWARD;
+
+    // =======================
+    // Poses
+    // =======================
+    private final Pose startPose   = new Pose(124, 124, Math.toRadians(45));
+    private final Pose shootPose   = new Pose(96,  96,  Math.toRadians(45));
+    private final Pose pickupPose2 = new Pose(103, 61,  Math.toRadians(0));
+    private final Pose afterIntake1 = new Pose(128, 67,  Math.toRadians(0));
 
     // =======================
     // PedroPathing
@@ -65,6 +79,7 @@ public class Auto_nomous extends LinearOpMode {
     private Follower follower;
     private PathChain toShoot;
     private PathChain toPickup2;
+    private PathChain toShoot2;
 
     // =======================
     // State Machine
@@ -72,10 +87,13 @@ public class Auto_nomous extends LinearOpMode {
     private final Timer actionTimer = new Timer();
     private int state = 0;
 
-    // How long to spin up shooter after arriving before opening gate (seconds)
-    private static final double SPINUP_TIME = 1.0;
-    // How long to hold gate open for shooting (seconds)
-    private static final double SHOOT_TIME  = 3.0;
+    private static final double SPINUP_TIME_1 = 0.35;
+    private static final double SPINUP_TIME_2 = 1.35;
+    private static final double SHOOT_TIME_1  = 0.5;
+    private static final double SHOOT_TIME_2  = 1.0;
+
+    // Whether Pedro should be updating (disabled during manual drive states)
+    private boolean pedroActive = true;
 
     @Override
     public void runOpMode() {
@@ -91,7 +109,11 @@ public class Auto_nomous extends LinearOpMode {
         frontRightDrive.setDirection(DcMotor.Direction.FORWARD);
         backRightDrive.setDirection(DcMotor.Direction.FORWARD);
 
-        // middleTransfer doubles as intake and transfer feed to shooter
+        frontLeftDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        backLeftDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        frontRightDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        backRightDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
         middleTransfer = hardwareMap.get(DcMotor.class, "middleTransfer");
         middleTransfer.setDirection(DcMotor.Direction.FORWARD);
 
@@ -109,6 +131,9 @@ public class Auto_nomous extends LinearOpMode {
         Gate = hardwareMap.servo.get("Gate");
         Gate.setPosition(GATE_CLOSED);
 
+        transferBlocker = hardwareMap.servo.get("transferBlocker");
+        transferBlocker.setPosition(SERVO_HOME);
+
         // ── PIDF Controllers ───────────────────────────────────────────────
         leftController  = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_shooter, TICKS_PER_REV);
         rightController = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_shooter, TICKS_PER_REV);
@@ -117,7 +142,6 @@ public class Auto_nomous extends LinearOpMode {
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(startPose);
 
-        // Build path: start → shoot (PathChain as requested)
         toShoot = follower.pathBuilder()
                 .addPath(new BezierLine(startPose, shootPose))
                 .setLinearHeadingInterpolation(startPose.getHeading(), shootPose.getHeading())
@@ -128,6 +152,11 @@ public class Auto_nomous extends LinearOpMode {
                 .setLinearHeadingInterpolation(shootPose.getHeading(), pickupPose2.getHeading())
                 .build();
 
+        toShoot2 = follower.pathBuilder()
+                .addPath(new BezierLine(afterIntake1, shootPose))
+                .setLinearHeadingInterpolation(afterIntake1.getHeading(), shootPose.getHeading())
+                .build();
+
         telemetry.addLine("✅ Initialized — waiting for start");
         telemetry.update();
 
@@ -136,7 +165,9 @@ public class Auto_nomous extends LinearOpMode {
         setState(0);
 
         while (opModeIsActive()) {
-            follower.update();
+            if (pedroActive) {
+                follower.update();
+            }
             updateShooter();
             updateStateMachine();
 
@@ -157,14 +188,15 @@ public class Auto_nomous extends LinearOpMode {
         shooterRight.setPower(0);
         middleTransfer.setPower(0);
         Gate.setPosition(GATE_CLOSED);
+        stopDrive();
     }
 
     // ── Shooter PIDF update (called every loop) ────────────────────────────
     private void updateShooter() {
-        double voltage  = voltageSensor.getVoltage();
-        double powerL   = leftController.computePowerForTargetRPMWithVoltageCompensation(
+        double voltage = voltageSensor.getVoltage();
+        double powerL  = leftController.computePowerForTargetRPMWithVoltageCompensation(
                 TARGET_RPM, shooterLeft.getVelocity(), voltage, NOMINAL_VOLTAGE);
-        double powerR   = rightController.computePowerForTargetRPMWithVoltageCompensation(
+        double powerR  = rightController.computePowerForTargetRPMWithVoltageCompensation(
                 TARGET_RPM, shooterRight.getVelocity(), voltage, NOMINAL_VOLTAGE);
         shooterLeft.setPower(powerL);
         shooterRight.setPower(powerR);
@@ -174,35 +206,35 @@ public class Auto_nomous extends LinearOpMode {
     private void updateStateMachine() {
         switch (state) {
 
-            // STATE 0: Turn on shooter, immediately start driving to shoot pose
+            // ── FIRST SHOOT CYCLE ─────────────────────────────────────────
+
+            // STATE 0: Start shooter, begin driving to shoot pose
             case 0:
-                // Shooter is already being driven by updateShooter() — nothing extra needed.
-                // Begin path to shoot pose
                 follower.followPath(toShoot, true);
                 setState(1);
                 break;
 
-            // STATE 1: Wait for robot to reach shoot pose
+            // STATE 1: Wait to arrive at shoot pose
             case 1:
                 if (!follower.isBusy()) {
                     setState(2);
                 }
                 break;
 
-            // STATE 2: 1s spinup hold — then open gate AND start transfer to feed balls
+            // STATE 2: Spinup hold, then open gate and start transfer
             case 2:
-                if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME) {
+                if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME_1) {
                     Gate.setPosition(GATE_OPEN);
-                    middleTransfer.setPower(1.0); // run transfer to feed balls into shooter
+                    middleTransfer.setPower(1.0);
                     setState(3);
                 }
                 break;
 
-            // STATE 3: Gate open + transfer running — shoot until time elapses
+            // STATE 3: Shoot, then close gate and drive to pickup
             case 3:
-                if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME) {
+                if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_1) {
                     Gate.setPosition(GATE_CLOSED);
-                    middleTransfer.setPower(0); // stop transfer when done shooting
+                    middleTransfer.setPower(0);
                     shooterLeft.setPower(0);
                     shooterRight.setPower(0);
                     leftController.reset();
@@ -212,18 +244,74 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // STATE 4: Wait for robot to reach pickupPose2
+            // ── RAPID INTAKE ──────────────────────────────────────────────
+
+            // STATE 4: Wait to arrive at pickupPose2
             case 4:
                 if (!follower.isBusy()) {
-                    setState(-1); // Done
+                    transferBlocker.setPosition(SERVO_HOME);
+                    setState(5);
+                }
+                break;
+
+            // STATE 5: Brief pause after resetting transfer servo
+            case 5:
+                if (actionTimer.getElapsedTimeSeconds() >= TRANSFER_RESET_DELAY) {
+                    middleTransfer.setPower(1.0);
+                    pedroActive = false; // hand off drive control to manual
+                    setDrivePower(DRIVE_DIRECTION, INTAKE_DRIVE_POWER);
+                    setState(6);
+                }
+                break;
+
+            // STATE 6: Drive + intake for INTAKE_DRIVE_DURATION seconds
+            case 6:
+                if (actionTimer.getElapsedTimeSeconds() >= INTAKE_DRIVE_DURATION) {
+                    stopDrive();
+                    middleTransfer.setPower(0);
+                    // Hand drive back to Pedro and tell it where we ended up
+                    pedroActive = true;
+                    follower.setPose(afterIntake1);
+                    follower.followPath(toShoot2, true);
+                    setState(7);
+                }
+                break;
+
+            // ── SECOND SHOOT CYCLE ────────────────────────────────────────
+
+            // STATE 7: Wait to arrive back at shoot pose
+            case 7:
+                if (!follower.isBusy()) {
+                    setState(8);
+                }
+                break;
+
+            // STATE 8: Spinup hold, then open gate and start transfer
+            case 8:
+                if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME_2) {
+                    Gate.setPosition(GATE_OPEN);
+                    middleTransfer.setPower(1.0);
+                    setState(9);
+                }
+                break;
+
+            // STATE 9: Shoot, then shut everything down
+            case 9:
+                if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_2) {
+                    Gate.setPosition(GATE_CLOSED);
+                    middleTransfer.setPower(0);
+                    shooterLeft.setPower(0);
+                    shooterRight.setPower(0);
+                    leftController.reset();
+                    rightController.reset();
+                    setState(-1);
                 }
                 break;
 
             default:
-                // Idle / done — cut shooter and transfer power
+                // Idle / done
                 shooterLeft.setPower(0);
                 shooterRight.setPower(0);
-                middleTransfer.setPower(0);
                 leftController.reset();
                 rightController.reset();
                 break;
@@ -233,5 +321,42 @@ public class Auto_nomous extends LinearOpMode {
     private void setState(int newState) {
         state = newState;
         actionTimer.resetTimer();
+    }
+
+    // ── Drive Helpers ──────────────────────────────────────────────────────
+
+    private void setDrivePower(RapidIntakeFromMarkerTest.DriveDirection direction, double power) {
+        double fl, bl, fr, br;
+
+        switch (direction) {
+            case FORWARD:
+                fl =  power; bl =  power;
+                fr =  power; br =  power;
+                break;
+            case STRAFE_LEFT:
+                fl = -power; bl =  power;
+                fr =  power; br = -power;
+                break;
+            case STRAFE_RIGHT:
+                fl =  power; bl = -power;
+                fr = -power; br =  power;
+                break;
+            case NONE:
+            default:
+                fl = 0; bl = 0; fr = 0; br = 0;
+                break;
+        }
+
+        frontLeftDrive.setPower(fl);
+        backLeftDrive.setPower(bl);
+        frontRightDrive.setPower(fr);
+        backRightDrive.setPower(br);
+    }
+
+    private void stopDrive() {
+        frontLeftDrive.setPower(0);
+        backLeftDrive.setPower(0);
+        frontRightDrive.setPower(0);
+        backRightDrive.setPower(0);
     }
 }
