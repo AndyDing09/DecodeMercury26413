@@ -172,11 +172,13 @@ public class Shooter {
 
         double rpmL = shooterLeft .getVelocity() * 60.0 / TICKS_PER_REV;
         double rpmR = shooterRight.getVelocity() * 60.0 / TICKS_PER_REV;
+        double avgRPM = (rpmL + rpmR) / 2.0;
+        double rpmError = targetRPM - avgRPM;
+        telemetry.addData("Target RPM", (int) targetRPM);
+        telemetry.addData("Actual RPM", String.format("L:%d  R:%d  Avg:%d", (int) rpmL, (int) rpmR, (int) avgRPM));
+        telemetry.addData("RPM Error", String.format("%+d (%.1f%%)", (int) rpmError, (rpmError / Math.max(targetRPM, 1)) * 100));
         telemetry.addData("Shooter Power", String.format("%.2f / %.2f", powerLeft, powerRight));
-        telemetry.addData("LeftRPM",  (int) rpmL);
-        telemetry.addData("RightRPM", (int) rpmR);
         telemetry.addData("Battery",  String.format("%.1f V", currentVoltage));
-        telemetry.addData("Hood Servo Pos", String.format("%.3f", currentHoodAnglePos));
     }
 
     private void updateHoodServos(double position) {

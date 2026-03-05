@@ -7,6 +7,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
+import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.limelightvision.LLResult;
 
@@ -16,57 +17,63 @@ public class Turret {
     private final DcMotorEx turretMotor;
     private final Limelight3A limelight;
 
-    // PD gains — large mode (aggressive)
-    private double kP_large = 0.018;
-    private double kD_large = 0.025;
-    private double MAX_OUTPUT_large = 1.0;
+    // ==================== STATE MACHINE ====================
+    private enum State { IDLE, MANUAL, SEARCHING, TRACKING }
+    private State state = State.IDLE;
 
-    // PD gains — small mode (gentle)
-    private double kP_small = 0.012;
-    private double kD_small = 0.020;
-    private double MAX_OUTPUT_small = 0.6;
+    // ==================== PID GAINS (tunable) ====================
+    private double kP = 0.025;
+    private double kI = 0.008;
+    private double kD = 0.004;
+    private double kF_velocity = 0.006;  // feedforward on target tx velocity (lead moving targets)
 
-    // Shared tuning
-    private double TURRET_THRESHOLD = 6.0;
-    private double DEADZONE_DEGREES = 0.3;
-    private double TURRET_OPEN_F    = 0.015;
-    private double TURRET_VEL_FF    = 0.003;
-    private double kEncoderDamp     = 0.0002;
-    private static final double DEFAULT_VOLTAGE = 12.0;
+    // ==================== TUNING CONSTANTS ====================
+    private double DEADZONE = 0.5;          // degrees — stop correcting within this
+    private double INTEGRAL_ZONE = 8.0;     // degrees — only accumulate I when error < this
+    private double MAX_INTEGRAL = 0.3;      // clamp integral contribution to this power
+    private static final double NOMINAL_VOLTAGE = 12.0;
 
-    private static final double MAX_TURRET_POWER  = 1.0;
-    private static final double FAST_SEARCH_POWER = 0.35;
-    private int TARGET_LOSS_THRESHOLD = 1;
+    // ==================== ENCODER LIMITS ====================
+    private static final int LEFT_LIMIT  = -400;
+    private static final int RIGHT_LIMIT =  400;
+    private static final int LIMIT_SOFT_ZONE = 50;  // ticks from limit to start decelerating
 
-    // Limits
-    private static final int LEFT_LIMIT      = -400;
-    private static final int RIGHT_LIMIT     =  400;
-    private static final int CENTER_POSITION =    0;
+    // ==================== SEARCH ====================
+    private static final double SEARCH_POWER = 0.30;
+    private boolean searchDirection = true;  // true = right
 
-    private static final double BRAKE_VEL_THRESHOLD = 80.0;
-    private static final double BRAKE_POWER         = 0.25;
-
-    private static final double INIT_POWER     = 1.0;
+    // ==================== INIT ====================
+    private static final double INIT_POWER    = 1.0;
     private static final int    INIT_TOLERANCE = 10;
+    private boolean turretInitialized = false;
 
-    // State
-    private double  lastTx              = 0;
-    private boolean lastTxValid         = false;
-    private double  txVelocity          = 0;
-    private boolean scanningRight       = true;
-    private boolean autoTrackEnabled    = false;
-    private boolean turretInitialized   = false;
-    private boolean wasSearching        = false;
-    private boolean braking             = false;
-    private int     framesOnTarget      = 0;
-    private int     framesWithoutTarget = 0;
+    // ==================== PID STATE ====================
+    private final ElapsedTime pidTimer = new ElapsedTime();
+    private double lastTx = 0;
+    private double integralSum = 0;
+    private double lastDerivative = 0;
+    private boolean pidInitialized = false;
 
-    // Tuning UI
+    // Derivative low-pass filter
+    private static final double D_FILTER = 0.6;
+
+    // Target loss debounce
+    private int framesWithoutTarget = 0;
+    private static final int LOSS_DEBOUNCE = 5;  // frames to wait before declaring target lost
+
+    // Last known tx for debounce hold
+    private double lastKnownTx = 0;
+
+    // ==================== LIVE TUNING ====================
     private int selectedParam = 0;
-    private static final int    NUM_PARAMS  = 10;
+    private static final int NUM_PARAMS = 6;
     private static final double STEP_FINE   = 0.001;
-    private static final double STEP_COARSE = 0.01;
+    private static final double STEP_COARSE = 0.005;
     private boolean lastDpadUp, lastDpadDown, lastDpadLeft, lastDpadRight;
+
+    // ==================== TELEMETRY STATE ====================
+    private String currentMode = "IDLE";
+    private double lastOutputPower = 0;
 
     public Turret(HardwareMap hardwareMap) {
         turretMotor = hardwareMap.get(DcMotorEx.class, "turretMotor");
@@ -80,12 +87,13 @@ public class Turret {
         limelight.start();
     }
 
+    // ==================== INIT ====================
+
     public void centerTurret(com.qualcomm.robotcore.eventloop.opmode.LinearOpMode opMode) {
-        int currentPos;
         int error;
         do {
-            currentPos = turretMotor.getCurrentPosition();
-            error      = CENTER_POSITION - currentPos;
+            int currentPos = turretMotor.getCurrentPosition();
+            error = -currentPos;
             turretMotor.setPower(Math.signum(error) * INIT_POWER);
             opMode.sleep(20);
         } while (Math.abs(error) > INIT_TOLERANCE && opMode.opModeIsActive());
@@ -105,6 +113,224 @@ public class Turret {
         }
     }
 
+    // ==================== MAIN UPDATE ====================
+
+    public void update(boolean toggleTrack, double manualStickX, VoltageSensor voltageSensor,
+                       Telemetry telemetry, com.qualcomm.robotcore.eventloop.opmode.LinearOpMode opMode) {
+        // Toggle auto-tracking
+        if (toggleTrack) {
+            if (state == State.IDLE) {
+                state = State.SEARCHING;
+                resetPID();
+                searchDirection = true;
+            } else {
+                state = State.IDLE;
+            }
+            opMode.sleep(200);
+        }
+
+        // Manual override always takes priority
+        if (Math.abs(manualStickX) > 0.15) {
+            state = State.MANUAL;
+        } else if (state == State.MANUAL) {
+            // Released stick — go back to searching
+            state = State.SEARCHING;
+            resetPID();
+        }
+
+        int encoderPos = turretMotor.getCurrentPosition();
+        double voltage = voltageSensor.getVoltage();
+        double outputPower = 0;
+
+        switch (state) {
+            case IDLE:
+                currentMode = "IDLE";
+                outputPower = 0;
+                break;
+
+            case MANUAL:
+                currentMode = "MANUAL";
+                outputPower = manualStickX * 0.5;
+                framesWithoutTarget = 0;
+                resetPID();
+                break;
+
+            case SEARCHING:
+                outputPower = doSearch(encoderPos);
+                break;
+
+            case TRACKING:
+                outputPower = doTracking(voltage);
+                break;
+        }
+
+        // Check for target acquisition/loss (only in SEARCHING or TRACKING)
+        if (state == State.SEARCHING || state == State.TRACKING) {
+            LLResult result = limelight.getLatestResult();
+            boolean hasTarget = result != null && result.isValid();
+
+            if (hasTarget) {
+                double tx = result.getTx();
+                framesWithoutTarget = 0;
+                lastKnownTx = tx;
+
+                if (state == State.SEARCHING) {
+                    // Target found! Switch to tracking
+                    state = State.TRACKING;
+                    resetPID();
+                    lastTx = tx;
+                    pidInitialized = true;
+                    pidTimer.reset();
+                }
+
+                // Run PID on current frame
+                outputPower = doTracking(tx, voltage);
+            } else {
+                framesWithoutTarget++;
+
+                if (state == State.TRACKING) {
+                    if (framesWithoutTarget <= LOSS_DEBOUNCE) {
+                        // Hold position using last known tx (decaying)
+                        currentMode = "HOLDING (" + framesWithoutTarget + ")";
+                        outputPower = 0;
+                    } else {
+                        // Lost target — go back to searching
+                        state = State.SEARCHING;
+                        resetPID();
+                        // Search in the direction we last saw the target
+                        searchDirection = lastKnownTx > 0;
+                    }
+                }
+            }
+        }
+
+        // Soft encoder limits — decelerate as we approach limits
+        outputPower = applySoftLimits(outputPower, encoderPos);
+
+        // Voltage compensation on output
+        if (voltage > 0) {
+            outputPower *= (NOMINAL_VOLTAGE / voltage);
+        }
+
+        // Final clamp
+        outputPower = Math.max(-1.0, Math.min(1.0, outputPower));
+        lastOutputPower = outputPower;
+        turretMotor.setPower(outputPower);
+
+        // Telemetry
+        LLResult tlmResult = limelight.getLatestResult();
+        telemetry.addData("Turret", currentMode);
+        telemetry.addData("tx",     tlmResult != null && tlmResult.isValid()
+                ? String.format("%.2f deg", tlmResult.getTx()) : "N/A");
+        telemetry.addData("Power",  String.format("%.2f", lastOutputPower));
+        telemetry.addData("Enc",    encoderPos);
+    }
+
+    // ==================== SEARCH LOGIC ====================
+
+    private double doSearch(int encoderPos) {
+        // Reverse at limits
+        if (encoderPos >= RIGHT_LIMIT - LIMIT_SOFT_ZONE) searchDirection = false;
+        else if (encoderPos <= LEFT_LIMIT + LIMIT_SOFT_ZONE) searchDirection = true;
+
+        currentMode = "SEARCH " + (searchDirection ? "->" : "<-");
+        return searchDirection ? SEARCH_POWER : -SEARCH_POWER;
+    }
+
+    // ==================== TRACKING PID ====================
+
+    private double doTracking(double voltage) {
+        // Called when we don't have a new frame — hold with 0 power (motor brake holds position)
+        return 0;
+    }
+
+    private double doTracking(double tx, double voltage) {
+        double dt = Math.max(0.001, pidTimer.seconds());
+        pidTimer.reset();
+
+        double error = tx;  // tx > 0 means target is to the right of center
+        double absTx = Math.abs(tx);
+
+        // Deadzone — close enough, stop correcting
+        if (absTx <= DEADZONE) {
+            currentMode = "LOCKED";
+            // Don't reset integral — maintain hold against drift
+            lastTx = tx;
+            return 0;
+        }
+
+        // Integral — only within zone, prevents windup during large corrections
+        if (absTx < INTEGRAL_ZONE) {
+            integralSum += error * dt;
+            double maxI = MAX_INTEGRAL / Math.max(kI, 1e-9);
+            integralSum = Math.max(-maxI, Math.min(maxI, integralSum));
+        } else {
+            integralSum *= 0.9;  // decay when far away
+        }
+
+        // Time-based derivative with low-pass filter
+        double rawDerivative = 0;
+        if (pidInitialized) {
+            rawDerivative = (tx - lastTx) / dt;
+        }
+        double derivative = D_FILTER * lastDerivative + (1.0 - D_FILTER) * rawDerivative;
+        lastDerivative = derivative;
+        lastTx = tx;
+        pidInitialized = true;
+
+        // PID output (negative because positive tx = target right = turret needs to go right = positive power...
+        // but convention may be inverted — sign is tunable by flipping motor direction)
+        double pTerm = kP * error;
+        double iTerm = kI * integralSum;
+        double dTerm = kD * derivative;
+        double fTerm = kF_velocity * derivative;  // lead moving targets
+
+        double output = -(pTerm + iTerm + dTerm + fTerm);
+
+        // Back-calc anti-windup
+        if (Math.abs(output) > 1.0) {
+            integralSum -= (output - Math.signum(output)) / Math.max(kI, 1e-9) * dt;
+        }
+
+        currentMode = absTx > 5.0 ? "SLEWING" : "TRACKING";
+        return output;
+    }
+
+    // ==================== SOFT LIMITS ====================
+
+    private double applySoftLimits(double power, int encoderPos) {
+        // Approaching right limit — scale down positive power
+        if (encoderPos > RIGHT_LIMIT - LIMIT_SOFT_ZONE && power > 0) {
+            double distToLimit = Math.max(0, RIGHT_LIMIT - encoderPos);
+            double scale = distToLimit / (double) LIMIT_SOFT_ZONE;
+            power *= scale;
+        }
+        // Approaching left limit — scale down negative power
+        if (encoderPos < LEFT_LIMIT + LIMIT_SOFT_ZONE && power < 0) {
+            double distToLimit = Math.max(0, encoderPos - LEFT_LIMIT);
+            double scale = distToLimit / (double) LIMIT_SOFT_ZONE;
+            power *= scale;
+        }
+        // Hard stop at limits
+        if ((encoderPos >= RIGHT_LIMIT && power > 0) || (encoderPos <= LEFT_LIMIT && power < 0)) {
+            power = 0;
+        }
+        return power;
+    }
+
+    // ==================== PID RESET ====================
+
+    private void resetPID() {
+        integralSum = 0;
+        lastTx = 0;
+        lastDerivative = 0;
+        pidInitialized = false;
+        pidTimer.reset();
+        framesWithoutTarget = 0;
+    }
+
+    // ==================== LIVE TUNING ====================
+
     public void updateTuning(boolean dpadUp, boolean dpadDown, boolean dpadLeft, boolean dpadRight, boolean leftBumper) {
         if (dpadUp && !lastDpadUp)     selectedParam = (selectedParam + 1) % NUM_PARAMS;
         if (dpadDown && !lastDpadDown) selectedParam = (selectedParam + NUM_PARAMS - 1) % NUM_PARAMS;
@@ -119,218 +345,37 @@ public class Turret {
         lastDpadRight = dpadRight;
     }
 
-    public void updateTracking(boolean crossPressed, double manualStickX, VoltageSensor voltageSensor, Telemetry telemetry, com.qualcomm.robotcore.eventloop.opmode.LinearOpMode opMode) {
-        if (crossPressed) {
-            autoTrackEnabled    = !autoTrackEnabled;
-            lastTx              = 0;
-            lastTxValid         = false;
-            txVelocity          = 0;
-            framesWithoutTarget = 0;
-            framesOnTarget      = 0;
-            wasSearching        = false;
-            braking             = false;
-            opMode.sleep(200);
+    private void adjustParam(int index, double delta) {
+        switch (index) {
+            case 0: kP           = Math.max(0, kP + delta);           break;
+            case 1: kI           = Math.max(0, kI + delta);           break;
+            case 2: kD           = Math.max(0, kD + delta);           break;
+            case 3: kF_velocity  = Math.max(0, kF_velocity + delta);  break;
+            case 4: DEADZONE     = Math.max(0.1, DEADZONE + delta);   break;
+            case 5: INTEGRAL_ZONE = Math.max(1, INTEGRAL_ZONE + delta * 5); break;
         }
-
-        LLResult result      = limelight.getLatestResult();
-        int      currentPos  = turretMotor.getCurrentPosition();
-        double   encoderVel  = turretMotor.getVelocity();
-        double   outputPower = 0;
-        String   mode        = "IDLE";
-        boolean  atLeftLimit  = currentPos <= LEFT_LIMIT;
-        boolean  atRightLimit = currentPos >= RIGHT_LIMIT;
-
-        if (Math.abs(manualStickX) > 0.2) {
-            mode                = "MANUAL";
-            outputPower         = manualStickX * 0.5;
-            autoTrackEnabled    = false;
-            framesWithoutTarget = 0;
-            framesOnTarget      = 0;
-            wasSearching        = false;
-            braking             = false;
-            lastTxValid         = false;
-            txVelocity          = 0;
-        }
-        else if (autoTrackEnabled && result != null && result.isValid()) {
-            double tx    = result.getTx();
-            double absTx = Math.abs(tx);
-            framesWithoutTarget = 0;
-
-            if (wasSearching && !braking) {
-                braking     = true;
-                lastTx      = tx;
-                lastTxValid = true;
-                txVelocity  = 0;
-            }
-
-            if (braking) {
-                if (Math.abs(encoderVel) > BRAKE_VEL_THRESHOLD) {
-                    outputPower = -Math.signum(encoderVel) * BRAKE_POWER;
-                    mode        = "BRAKING";
-                    lastTx      = tx;
-                } else {
-                    braking        = false;
-                    wasSearching   = false;
-                    lastTx         = tx;
-                    txVelocity     = 0;
-                    framesOnTarget = 0;
-                }
-            }
-
-            if (!braking) {
-                if (!lastTxValid) {
-                    lastTx         = tx;
-                    txVelocity     = 0;
-                    lastTxValid    = true;
-                    wasSearching   = false;
-                    framesOnTarget = 0;
-                } else {
-                    txVelocity = tx - lastTx;
-                }
-
-                double kP, kD, maxOut;
-                if (absTx > TURRET_THRESHOLD) {
-                    kP     = kP_large;
-                    kD     = kD_large;
-                    maxOut = MAX_OUTPUT_large;
-                    mode   = "TRACKING (LARGE)";
-                    framesOnTarget = 0;
-                } else {
-                    kP     = kP_small;
-                    kD     = kD_small;
-                    maxOut = MAX_OUTPUT_small;
-                    mode   = "LOCKED";
-                    framesOnTarget++;
-                }
-
-                boolean atSetPoint = absTx <= DEADZONE_DEGREES;
-
-                if (!atSetPoint) {
-                    outputPower = -((kP * tx) + (kD * (tx - lastTx)));
-                    outputPower -= encoderVel * kEncoderDamp;
-
-                    double voltage      = voltageSensor.getVoltage();
-                    double voltageScale = DEFAULT_VOLTAGE / voltage;
-                    outputPower += TURRET_OPEN_F * voltageScale * Math.signum(outputPower);
-                    outputPower += txVelocity * TURRET_VEL_FF * voltageScale;
-                    outputPower = Math.max(-maxOut, Math.min(maxOut, outputPower));
-                } else {
-                    outputPower = 0;
-                    mode        = "LOCKED OK";
-                }
-
-                if ((atRightLimit && outputPower > 0) ||
-                        (atLeftLimit && outputPower < 0)) {
-                    outputPower      = 0;
-                    autoTrackEnabled = true;
-                    wasSearching     = true;
-                    scanningRight    = !atRightLimit;
-                    lastTxValid      = false;
-                    mode             = "LIMIT->SEARCH";
-                }
-
-                lastTx = tx;
-            }
-        }
-        else if (autoTrackEnabled) {
-            framesWithoutTarget++;
-            lastTxValid = false;
-            braking     = false;
-            txVelocity  = 0;
-
-            if (framesWithoutTarget < TARGET_LOSS_THRESHOLD) {
-                mode        = "DEBOUNCE";
-                outputPower = 0;
-            } else {
-                mode           = "SEARCHING";
-                lastTx         = 0;
-                wasSearching   = true;
-                framesOnTarget = 0;
-
-                if (atRightLimit)      scanningRight = false;
-                else if (atLeftLimit)  scanningRight = true;
-
-                outputPower = scanningRight ? FAST_SEARCH_POWER : -FAST_SEARCH_POWER;
-                mode += scanningRight ? " ->" : " <-";
-            }
-        }
-
-        outputPower = Math.max(-MAX_TURRET_POWER, Math.min(MAX_TURRET_POWER, outputPower));
-        turretMotor.setPower(outputPower);
-
-        telemetry.addData("Turret Mode",   mode);
-        telemetry.addData("tx Error",      result != null && result.isValid()
-                ? String.format("%.2f deg", result.getTx()) : "N/A");
-        telemetry.addData("tx Velocity",   String.format("%.3f deg/frame", txVelocity));
-        telemetry.addData("Enc Velocity",  String.format("%.0f ticks/s", encoderVel));
-        telemetry.addData("Frames Stable", framesOnTarget);
     }
 
     @SuppressLint("DefaultLocale")
     public void addTelemetry(Telemetry telemetry) {
         LLResult result = limelight.getLatestResult();
 
-        telemetry.addLine("--- TURRET PID TUNER (gamepad2 dpad) ---");
+        telemetry.addLine("--- TURRET TUNER (GP2 dpad) ---");
+        String[] names = {"kP", "kI", "kD", "kF_vel", "Deadzone", "I_Zone"};
+        double[] vals  = {kP, kI, kD, kF_velocity, DEADZONE, INTEGRAL_ZONE};
         for (int i = 0; i < NUM_PARAMS; i++) {
             String marker = (i == selectedParam) ? "> " : "  ";
-            telemetry.addData(marker + paramName(i), String.format("%.4f", paramValue(i)));
+            telemetry.addData(marker + names[i], String.format("%.4f", vals[i]));
         }
 
         telemetry.addLine("--- STATUS ---");
-        telemetry.addData("Auto-Track",   autoTrackEnabled ? "ON" : "OFF");
-        telemetry.addData("Turret Enc",   turretMotor.getCurrentPosition());
-        telemetry.addData("Target Found", result != null && result.isValid());
+        telemetry.addData("Auto-Track", state != State.IDLE ? "ON" : "OFF");
+        telemetry.addData("Turret Enc", turretMotor.getCurrentPosition());
+        telemetry.addData("Target",     result != null && result.isValid() ? "YES" : "NO");
     }
 
     public void stop() {
         limelight.stop();
         turretMotor.setPower(0);
-    }
-
-    private void adjustParam(int index, double delta) {
-        switch (index) {
-            case 0: kP_large         = Math.max(0,   kP_large         + delta);      break;
-            case 1: kD_large         = Math.max(0,   kD_large         + delta);      break;
-            case 2: kP_small         = Math.max(0,   kP_small         + delta);      break;
-            case 3: kD_small         = Math.max(0,   kD_small         + delta);      break;
-            case 4: TURRET_THRESHOLD = Math.max(1,   TURRET_THRESHOLD + delta * 10); break;
-            case 5: DEADZONE_DEGREES = Math.max(0.1, DEADZONE_DEGREES + delta * 5);  break;
-            case 6: TURRET_OPEN_F    = Math.max(0,   TURRET_OPEN_F    + delta);      break;
-            case 7: TURRET_VEL_FF    = Math.max(0,   TURRET_VEL_FF    + delta);      break;
-            case 8: MAX_OUTPUT_small = Math.max(0.1, Math.min(1.0, MAX_OUTPUT_small + delta * 5)); break;
-            case 9: kEncoderDamp     = Math.max(0,   kEncoderDamp     + delta);      break;
-        }
-    }
-
-    private String paramName(int i) {
-        switch (i) {
-            case 0: return "kP_large";
-            case 1: return "kD_large";
-            case 2: return "kP_small";
-            case 3: return "kD_small";
-            case 4: return "THRESHOLD (deg)";
-            case 5: return "DEADZONE (deg)";
-            case 6: return "OPEN_F (stiction)";
-            case 7: return "VEL_FF";
-            case 8: return "MAX_OUT_small";
-            case 9: return "ENC_DAMP";
-            default: return "?";
-        }
-    }
-
-    private double paramValue(int i) {
-        switch (i) {
-            case 0: return kP_large;
-            case 1: return kD_large;
-            case 2: return kP_small;
-            case 3: return kD_small;
-            case 4: return TURRET_THRESHOLD;
-            case 5: return DEADZONE_DEGREES;
-            case 6: return TURRET_OPEN_F;
-            case 7: return TURRET_VEL_FF;
-            case 8: return MAX_OUTPUT_small;
-            case 9: return kEncoderDamp;
-            default: return 0;
-        }
     }
 }
