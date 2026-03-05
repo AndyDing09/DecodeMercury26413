@@ -214,6 +214,15 @@ public class launchermathtest extends LinearOpMode {
 
             if (!Double.isNaN(requiredVelocityMS) && targetDistance > 0) {
                 targetVelocityTicks = interpolateToTicks(requiredVelocityMS);
+
+                // Apply the calculated hood angle to the servo
+                if (!Double.isNaN(requiredHoodAngle)) {
+                    currentHoodAngle = requiredHoodAngle;
+                    double effectiveMaxAuto = Math.min(MAX_HOOD_ANGLE, MAX_REACHABLE_HOOD_ANGLE);
+                    if (currentHoodAngle < MIN_HOOD_ANGLE) currentHoodAngle = MIN_HOOD_ANGLE;
+                    if (currentHoodAngle > effectiveMaxAuto) currentHoodAngle = effectiveMaxAuto;
+                    updateHoodServoPosition(currentHoodAngle);
+                }
             }
 
             // ================= SHOOTER PIDF (PIDFMotorController + voltage comp) =================

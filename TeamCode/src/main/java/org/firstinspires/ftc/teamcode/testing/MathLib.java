@@ -20,7 +20,7 @@ public final class MathLib {
     public static final double LAUNCHER_HEIGHT = 0.32385;    // shooter height in meters
     public static final double MIN_HOOD_ANGLE = 26.0;
     public static final double MAX_HOOD_ANGLE = 45.0;
-    public static final double LAUNCHER_MAX_BALL_VELOCITY = 15.42;
+    public static final double LAUNCHER_MAX_BALL_VELOCITY = 15.0;
     public static final double MAX_DRIVE_VELOCITY = 15.0;
 
     // goal geometry for lip clearance and backboard targeting
@@ -30,8 +30,8 @@ public final class MathLib {
     public static final double DISTANCE_OFFSET = 0.0;   // no distance sensor — input is true distance
 
     // interpolation tables originally captured from launcher testing
-    private static final double[] INPUT_MS = {-0.01, 0.0, 7.376, 8.9408, 10.2819, 12.07, 13.4112, 14.5288, 15.42288};
-    private static final double[] OUTPUT_TICKS = {-0.01, 0.0, 933.33, 1166.67, 1400.0, 1633.33, 1866.667, 2100, 2240.0};
+    private static final double[] INPUT_MS = {-0.01, 0.0, 4.29,   4.49,   4.76,   5.22,   5.65,   6.06,   6.44,   6.86,   7.2,    10.0};
+    private static final double[] OUTPUT_TICKS = {-0.01, 0.0, 1040.0, 1100.0, 1180.0, 1320.0, 1480.0, 1620.0, 1780.0, 1940.0, 1980.0, 2100.0}; // output: ticks/s
 
     /**
      * Full ballistics solver. Given a horizontal distance to the goal, computes

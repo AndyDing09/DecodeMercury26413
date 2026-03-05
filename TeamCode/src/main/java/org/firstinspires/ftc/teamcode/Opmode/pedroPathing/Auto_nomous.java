@@ -131,8 +131,8 @@ public class Auto_nomous extends LinearOpMode {
         shooterRight.setDirection(DcMotorSimple.Direction.REVERSE);
         shooterLeft.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         shooterRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        shooterLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        shooterRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        shooterLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        shooterRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         Gate = hardwareMap.servo.get("Gate");
         Gate.setPosition(GATE_CLOSED);
@@ -256,13 +256,11 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // STATE 3: Shoot, then close gate and drive to pickup
+            // STATE 3: Shoot, then close gate and drive to pickup (keep PIDF warm for fast recovery)
             case 3:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_1) {
                     Gate.setPosition(GATE_CLOSED);
                     middleTransfer.setPower(0);
-                    leftController.reset();
-                    rightController.reset();
                     follower.followPath(toPickup2, true);
                     setState(4);
                 }
@@ -316,13 +314,11 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // STATE 9: Shoot, then drive toward clearPose for third pickup
+            // STATE 9: Shoot, then drive toward clearPose for third pickup (keep PIDF warm)
             case 9:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_2) {
                     Gate.setPosition(GATE_CLOSED);
                     middleTransfer.setPower(0);
-                    leftController.reset();
-                    rightController.reset();
                     follower.followPath(toClear, true);
                     setState(10);
                 }
