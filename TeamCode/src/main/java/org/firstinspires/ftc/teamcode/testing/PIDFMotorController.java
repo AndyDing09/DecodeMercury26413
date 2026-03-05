@@ -20,6 +20,9 @@ public class PIDFMotorController {
     // Low-pass filter coefficient for derivative (0 = no filtering, 1 = full filtering)
     private static final double DERIVATIVE_FILTER = 0.7;
 
+    // Cap dt to prevent derivative spikes from slow loop iterations (e.g. Pedro path computation)
+    private static final double MAX_DT = 0.05;
+
     private final double ticksPerRev;
     private final ElapsedTime timer = new ElapsedTime();
 
@@ -57,18 +60,19 @@ public class PIDFMotorController {
             return 0.0;
         }
 
-        double dt = Math.max(1e-6, timer.seconds());
+        double dt = Math.min(MAX_DT, Math.max(1e-6, timer.seconds()));
         timer.reset();
 
         double error = targetTicksPerSec - currentTicksPerSec;
 
         // Only accumulate integral when close to setpoint (prevents ramp-up windup)
-        if (Math.abs(error) < INTEGRAL_ZONE_TICKS) {
+        boolean inIntegralZone = Math.abs(error) < INTEGRAL_ZONE_TICKS;
+        if (inIntegralZone) {
             integralSum += error * dt;
             integralSum = Math.max(-MAX_INTEGRAL, Math.min(MAX_INTEGRAL, integralSum));
         } else {
-            // Decay integral when far from target to prevent stale buildup
-            integralSum *= 0.8;
+            // Outside integral zone — reset integral so it doesn't carry stale values
+            integralSum = 0;
         }
 
         // Low-pass filtered derivative to reduce noise/jitter
@@ -82,14 +86,15 @@ public class PIDFMotorController {
         double pid = (kP * error) + (kI * integralSum) + (kD * derivative);
         double power = ff + pid;
 
-        // Back-calculation anti-windup: if output saturates, undo the integral that caused it
-        if (power > 1.0) {
-            integralSum -= (power - 1.0) / Math.max(kI, 1e-9) * dt;
-            power = 1.0;
-        } else if (power < 0) {
-            integralSum -= power / Math.max(kI, 1e-9) * dt;
-            power = 0;
+        // Anti-windup: only adjust integral when we're actually in the integral zone
+        if (inIntegralZone) {
+            if (power > 1.0) {
+                integralSum -= (power - 1.0) / Math.max(kI, 1e-9) * dt;
+            } else if (power < 0) {
+                integralSum -= power / Math.max(kI, 1e-9) * dt;
+            }
         }
+        power = Math.max(0, Math.min(1.0, power));
 
         return power;
     }
@@ -121,16 +126,17 @@ public class PIDFMotorController {
             return 0.0;
         }
 
-        double dt = Math.max(1e-6, timer.seconds());
+        double dt = Math.min(MAX_DT, Math.max(1e-6, timer.seconds()));
         timer.reset();
 
         double error = targetTicksPerSec - currentTicksPerSec;
 
-        if (Math.abs(error) < INTEGRAL_ZONE_TICKS) {
+        boolean inIntegralZone = Math.abs(error) < INTEGRAL_ZONE_TICKS;
+        if (inIntegralZone) {
             integralSum += error * dt;
             integralSum = Math.max(-MAX_INTEGRAL, Math.min(MAX_INTEGRAL, integralSum));
         } else {
-            integralSum *= 0.8;
+            integralSum = 0;
         }
 
         double rawDerivative = (error - lastError) / dt;
@@ -145,13 +151,15 @@ public class PIDFMotorController {
         double pid = (kP * error) + (kI * integralSum) + (kD * derivative);
         double power = ff + pid;
 
-        if (power > 1.0) {
-            integralSum -= (power - 1.0) / Math.max(kI, 1e-9) * dt;
-            power = 1.0;
-        } else if (power < 0) {
-            integralSum -= power / Math.max(kI, 1e-9) * dt;
-            power = 0;
+        // Anti-windup: only adjust integral when we're actually in the integral zone
+        if (inIntegralZone) {
+            if (power > 1.0) {
+                integralSum -= (power - 1.0) / Math.max(kI, 1e-9) * dt;
+            } else if (power < 0) {
+                integralSum -= power / Math.max(kI, 1e-9) * dt;
+            }
         }
+        power = Math.max(0, Math.min(1.0, power));
 
         return power;
     }

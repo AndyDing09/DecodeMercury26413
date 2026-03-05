@@ -35,7 +35,7 @@ public class Auto_nomous extends LinearOpMode {
     // Hood angle — starts at 0.7, drops 0.02 per 200 ticks of velocity drop (ball launch)
     private static final double HOOD_POS_START = 0.7;
     private static final double HOOD_DROP_PER_LAUNCH = 0.02;
-    private static final double LAUNCH_DROP_THRESHOLD = 300.0;  // ticks/sec velocity drop = ball fired
+    private static final double LAUNCH_DROP_THRESHOLD = 100.0;  // ticks/sec velocity drop = ball fired
     private double currentHoodPos = HOOD_POS_START;
     private double lastAvgVelocity = 0;
 
@@ -44,13 +44,13 @@ public class Auto_nomous extends LinearOpMode {
     // =======================
     private static final double TICKS_PER_REV      = 28.0;
     private static final double NOMINAL_VOLTAGE    = 12.0;
-    private static final double TARGET_RPM_INITIAL = 2400;
-    private static final double TARGET_RPM_FUTURE  = 2400;
+    private static final double TARGET_RPM_INITIAL = 3200;
+    private static final double TARGET_RPM_FUTURE  = 3200;
 
-    private static final double kP_shooter = 0.0015;
-    private static final double kI_shooter = 0.0004;
-    private static final double kD_shooter = 0.00010;
-    private static final double kF_shooter = 0.00045;
+    // Dual gain sets — match Shooter.java / ShooterConstants
+    private static final double kP_low  = 0.0012, kI_low  = 0.0003, kD_low  = 0.00008, kF_low  = 0.00045;
+    private static final double kP_high = 0.0015, kI_high = 0.0004, kD_high = 0.00010, kF_high = 0.00045;
+    private static final double RPM_GAIN_THRESHOLD = 3600.0;
 
     private PIDFMotorController leftController;
     private PIDFMotorController rightController;
@@ -74,7 +74,7 @@ public class Auto_nomous extends LinearOpMode {
     // =======================
     // Intake wait at pick pose
     // =======================
-    private static final double PICK_WAIT_SECONDS = 3.0;
+    private static final double PICK_WAIT_SECONDS = 1.5;
 
     // =======================
     // Poses
@@ -83,7 +83,7 @@ public class Auto_nomous extends LinearOpMode {
     private final Pose shootPose        = new Pose(96,  96,  Math.toRadians(45));
     private final Pose pickupPose2      = new Pose(100, 60.5,  Math.toRadians(0));
     private final Pose afterIntake1     = new Pose(132, 61.5,  Math.toRadians(0));
-    private final Pose clearPose        = new Pose(128, 63,   Math.toRadians(0));
+    private final Pose clearPose        = new Pose(128, 66,   Math.toRadians(0));
     private final Pose pickFromClearPose = new Pose(134, 56,  Math.toRadians(60));
 
     // =======================
@@ -153,9 +153,9 @@ public class Auto_nomous extends LinearOpMode {
         transferBlocker = hardwareMap.servo.get("transferBlocker");
         transferBlocker.setPosition(SERVO_HOME);
 
-        // ── PIDF Controllers ───────────────────────────────────────────────
-        leftController  = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_shooter, TICKS_PER_REV);
-        rightController = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_shooter, TICKS_PER_REV);
+        // ── PIDF Controllers (init with high gains since target is 3700 RPM) ──
+        leftController  = new PIDFMotorController(kP_high, kI_high, kD_high, kF_high, TICKS_PER_REV);
+        rightController = new PIDFMotorController(kP_high, kI_high, kD_high, kF_high, TICKS_PER_REV);
 
         // ── Pedro Init ─────────────────────────────────────────────────────
         follower = Constants.createFollower(hardwareMap);
@@ -203,6 +203,10 @@ public class Auto_nomous extends LinearOpMode {
 
         waitForStart();
 
+        // Reset PIDF timers so first frame doesn't have 30+ second stale dt
+        leftController.reset();
+        rightController.reset();
+
         setState(0);
 
         while (opModeIsActive()) {
@@ -219,6 +223,7 @@ public class Auto_nomous extends LinearOpMode {
             telemetry.addData("RPM", String.format("L:%d R:%d Avg:%d", (int) rpmL, (int) rpmR, (int) avgRPM));
             telemetry.addData("Target RPM", (int) activeTargetRPM);
             telemetry.addData("RPM Error", String.format("%+d", (int)(activeTargetRPM - avgRPM)));
+            telemetry.addData("Power L/R", String.format("%.2f / %.2f", shooterLeft.getPower(), shooterRight.getPower()));
             telemetry.addData("Hood Pos", String.format("%.3f", currentHoodPos));
             telemetry.addData("Battery", String.format("%.1f V", voltageSensor.getVoltage()));
             telemetry.update();
@@ -231,8 +236,17 @@ public class Auto_nomous extends LinearOpMode {
         Gate.setPosition(GATE_CLOSED);
     }
 
-    // ── Shooter PIDF update — uses activeTargetRPM ─────────────────────────
+    // ── Shooter PIDF update — runs entire auto, never turns off ────────────
     private void updateShooter() {
+        // Switch gains based on RPM (same as Shooter.java in TeleOp)
+        if (activeTargetRPM >= RPM_GAIN_THRESHOLD) {
+            leftController.setTunings(kP_high, kI_high, kD_high, kF_high);
+            rightController.setTunings(kP_high, kI_high, kD_high, kF_high);
+        } else {
+            leftController.setTunings(kP_low, kI_low, kD_low, kF_low);
+            rightController.setTunings(kP_low, kI_low, kD_low, kF_low);
+        }
+
         double voltage = voltageSensor.getVoltage();
         double powerL  = leftController.computePowerForTargetRPMWithVoltageCompensation(
                 activeTargetRPM, shooterLeft.getVelocity(), voltage, NOMINAL_VOLTAGE);
@@ -393,25 +407,17 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // STATE 15: Shoot, then shut everything down
+            // STATE 15: Shoot, then close gate (shooter keeps spinning)
             case 15:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_2) {
                     Gate.setPosition(GATE_CLOSED);
                     middleTransfer.setPower(0);
-                    shooterLeft.setPower(0);
-                    shooterRight.setPower(0);
-                    leftController.reset();
-                    rightController.reset();
                     setState(-1);
                 }
                 break;
 
             default:
-                // Idle / done
-                shooterLeft.setPower(0);
-                shooterRight.setPower(0);
-                leftController.reset();
-                rightController.reset();
+                // Done — shooter keeps spinning, updateShooter() handles PIDF
                 break;
         }
     }
