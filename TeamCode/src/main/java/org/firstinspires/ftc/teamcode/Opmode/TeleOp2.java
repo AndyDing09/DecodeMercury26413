@@ -37,7 +37,7 @@ public class TeleOp2 extends LinearOpMode {
     // -------------------------------------------------------
     private double kP_large = 0.018;
     private double kD_large = 0.025;
-    private double kF_large = 0.0;      // pure PIDF feedforward (velocity-based, set at runtime)
+    private double kF_large = 0.0;
     private double MAX_OUTPUT_large = 1.0;
 
     // -------------------------------------------------------
@@ -46,28 +46,20 @@ public class TeleOp2 extends LinearOpMode {
     private double kP_small = 0.012;
     private double kD_small = 0.020;
     private double kF_small = 0.0;
-    private double MAX_OUTPUT_small = 0.6;  // cap output in hold mode to reduce jitter
+    private double MAX_OUTPUT_small = 0.6;
 
     // -------------------------------------------------------
     //  Shared tuning constants
     // -------------------------------------------------------
-    // Threshold (degrees) at which we switch large <-> small PIDF
     private double TURRET_THRESHOLD   = 6.0;
-    // Deadzone (degrees) — inside this we call atSetPoint() and cut power
     private double DEADZONE_DEGREES   = 0.3;
-    // Static friction feedforward: added as sign(power)*OPEN_F to overcome stiction
-    // (replaces the old kF_acquire minimum-kick hack with something from the reference)
     private double TURRET_OPEN_F      = 0.015;
-    // Velocity feedforward gain: power += txVelocity * VEL_FF
-    // This is the KEY fix for the skip/delay — we predict where the target will be next frame
     private double TURRET_VEL_FF      = 0.003;
-    // Nominal voltage for power compensation
     private static final double DEFAULT_VOLTAGE = 12.0;
 
     private static final double MAX_TURRET_POWER  = 1.0;
     private static final double FAST_SEARCH_POWER = 0.35;
 
-    // How many frames with no target before starting sweep (1 = immediate)
     private int TARGET_LOSS_THRESHOLD = 1;
 
     // ================= TURRET LIMITS =================
@@ -81,8 +73,8 @@ public class TeleOp2 extends LinearOpMode {
 
     // ================= TURRET STATE =================
     private double  lastTx              = 0;
-    private boolean lastTxValid         = false;  // true once we have a real frame to D-off of
-    private double  txVelocity          = 0;      // deg/frame — used for velocity feedforward
+    private boolean lastTxValid         = false;
+    private double  txVelocity          = 0;
     private boolean scanningRight       = true;
     private boolean autoTrackEnabled    = false;
     private boolean turretInitialized   = false;
@@ -108,6 +100,12 @@ public class TeleOp2 extends LinearOpMode {
     private boolean shooterOn     = false;
     private boolean shooterKilled = false;
     private boolean lastLeftBumper, lastRightBumper, lastTriangle;
+
+    // ================= OUTTAKE SEQUENCE =================
+    private enum OuttakeState { IDLE, RAMPING, GATE_OPEN, TRANSFERRING }
+    private OuttakeState outtakeState = OuttakeState.IDLE;
+    private long outtakeStateStartTime = 0;
+    private static final long RAMP_DELAY_MS = 2000;
 
     private double targetRPM = 0;
     private static final double TICKS_PER_REV  = 28.0;
@@ -204,28 +202,42 @@ public class TeleOp2 extends LinearOpMode {
             // ---- INTAKE ----
             if (gamepad1.circle && !lastCircle) intakeOn = !intakeOn;
             lastCircle = gamepad1.circle;
-            middleTransfer.setPower(intakeOn ? 1.0 : 0.0);
 
-            // ---- SHOOTER ----
+            // ---- SHOOTER BUTTON HANDLING ----
             boolean lb  = gamepad1.left_bumper;
             boolean rb  = gamepad1.right_bumper;
             boolean tri = gamepad1.triangle;
 
             if (tri && !lastTriangle) {
-                shooterOn = false; shooterKilled = true; targetRPM = 0;
+                // Kill everything and reset outtake sequence
+                shooterOn     = false;
+                shooterKilled = true;
+                targetRPM     = 0;
+                outtakeState  = OuttakeState.IDLE;
                 Gate.setPosition(0.5);
+                // Only stop transfer if not actively intaking
+                if (!intakeOn) middleTransfer.setPower(0.0);
             }
             if (lb && !lastLeftBumper) {
-                shooterOn = true; shooterKilled = false;
-                targetRPM = MAX_SHOOTER_RPM;
-                Gate.setPosition(0.27);
+                shooterOn     = true;
+                shooterKilled = false;
+                targetRPM     = MAX_SHOOTER_RPM;
+                // Begin outtake sequence: ramp up first, gate and transfer follow after delay
+                outtakeState        = OuttakeState.RAMPING;
+                outtakeStateStartTime = System.currentTimeMillis();
             }
             if (rb && !lastRightBumper) {
-                shooterOn = true; shooterKilled = false;
-                targetRPM = 3000;
-                Gate.setPosition(0.27);
+                shooterOn     = true;
+                shooterKilled = false;
+                targetRPM     = 3000;
+                // Begin outtake sequence: ramp up first, gate and transfer follow after delay
+                outtakeState        = OuttakeState.RAMPING;
+                outtakeStateStartTime = System.currentTimeMillis();
             }
             lastLeftBumper = lb; lastRightBumper = rb; lastTriangle = tri;
+
+            // ---- OUTTAKE SEQUENCE STATE MACHINE ----
+            updateOuttakeSequence();
 
             // ---- SHOOTER PIDF ----
             if (!shooterOn || shooterKilled || targetRPM <= 0) {
@@ -266,6 +278,43 @@ public class TeleOp2 extends LinearOpMode {
 
         limelight.stop();
         turretMotor.setPower(0);
+    }
+
+    // ===================================================================
+    //  OUTTAKE SEQUENCE STATE MACHINE
+    //  RAMPING  → wait RAMP_DELAY_MS → GATE_OPEN (open gate) → TRANSFERRING (transfer on)
+    // ===================================================================
+    private void updateOuttakeSequence() {
+        if (outtakeState == OuttakeState.IDLE) return;
+
+        long now     = System.currentTimeMillis();
+        long elapsed = now - outtakeStateStartTime;
+
+        switch (outtakeState) {
+            case RAMPING:
+                // Shooter is spinning up — do nothing to gate or transfer yet.
+                // After 2 seconds, open the gate.
+                if (elapsed >= RAMP_DELAY_MS) {
+                    Gate.setPosition(0.27);
+                    outtakeState        = OuttakeState.GATE_OPEN;
+                    outtakeStateStartTime = now;
+                }
+                break;
+
+            case GATE_OPEN:
+                // Gate just opened — turn on the transfer immediately so balls feed through.
+                middleTransfer.setPower(1.0);
+                outtakeState = OuttakeState.TRANSFERRING;
+                break;
+
+            case TRANSFERRING:
+                // Steady state: shooter running, gate open, transfer on.
+                // Everything stays on until the driver kills it with triangle.
+                break;
+
+            default:
+                break;
+        }
     }
 
     // ===================================================================
@@ -337,14 +386,6 @@ public class TeleOp2 extends LinearOpMode {
 
     // ===================================================================
     //  TURRET TRACKING
-    //
-    //  Structure mirrors the reference Turret.java:
-    //    - Large PIDF when |error| > TURRET_THRESHOLD  (was: ACQUISITION mode)
-    //    - Small PIDF when |error| <= TURRET_THRESHOLD (was: HOLD mode)
-    //    - atSetPoint() cuts power (replaces frame counter)
-    //    - OPEN_F static feedforward overcomes stiction on first movement
-    //    - VEL_FF velocity feedforward predicts target motion (fixes skip/delay)
-    //    - Hard limit guard: don't push further if already past encoder limits
     // ===================================================================
     private void updateTurretTracking() {
         if (gamepad2.cross) {
@@ -380,8 +421,6 @@ public class TeleOp2 extends LinearOpMode {
             double absTx = Math.abs(tx);
             framesWithoutTarget = 0;
 
-            // Seed lastTx on first valid frame after search/init so D-term starts at zero.
-            // Also compute txVelocity for the velocity feedforward term.
             if (wasSearching || !lastTxValid) {
                 lastTx      = tx;
                 txVelocity  = 0;
@@ -389,13 +428,9 @@ public class TeleOp2 extends LinearOpMode {
                 wasSearching   = false;
                 framesOnTarget = 0;
             } else {
-                // txVelocity = how many degrees the target moved since last frame
-                // Positive = target moving right, negative = moving left
                 txVelocity = tx - lastTx;
             }
 
-            // Choose PIDF coefficients and output cap based on error size
-            // (mirrors reference: LARGE coefficients when far, SMALL when close)
             double kP, kD, maxOut;
             if (absTx > TURRET_THRESHOLD) {
                 kP     = kP_large;
@@ -411,42 +446,29 @@ public class TeleOp2 extends LinearOpMode {
                 framesOnTarget++;
             }
 
-            // atSetPoint() equivalent: inside deadzone → zero power
             boolean atSetPoint = absTx <= DEADZONE_DEGREES;
 
             if (!atSetPoint) {
-                // PD positional control output  (mirrors: power = controller.calculate(position))
                 outputPower = -((kP * tx) + (kD * (tx - lastTx)));
 
-                // Static feedforward: overcome stiction just like reference TURRET_OPEN_F
-                // Added as sign(power) * OPEN_F, voltage-compensated
                 double voltage       = voltageSensor.getVoltage();
                 double voltageScale  = DEFAULT_VOLTAGE / voltage;
                 outputPower += TURRET_OPEN_F * voltageScale * Math.signum(outputPower);
-
-                // Velocity feedforward: predicts where the target will be next frame.
-                // This is the key fix for the delay/skip — the turret leads the target
-                // instead of always reacting one frame late.
-                // Mirrors reference:  power += targetVel * TURRET_VEL_FF * voltageScale
                 outputPower += txVelocity * TURRET_VEL_FF * voltageScale;
 
-                // Clamp to mode-specific max output
                 outputPower = Math.max(-maxOut, Math.min(maxOut, outputPower));
             } else {
-                // At setpoint — cut power entirely (mirrors reference atSetPoint() check)
                 outputPower = 0;
                 mode        = "LOCKED OK";
             }
 
-            // Hard limit guard (mirrors reference limit check):
-            // Don't drive further into a hardware limit
             if ((currentPos >= RIGHT_LIMIT && outputPower > 0) ||
                     (currentPos <= LEFT_LIMIT  && outputPower < 0)) {
                 outputPower = 0;
                 mode        = "AT LIMIT";
             }
 
-            lastTx = tx;  // save after calculation for next frame's D-term and velocity
+            lastTx = tx;
         }
         // 3. SEARCH SWEEP
         else if (autoTrackEnabled) {
@@ -471,7 +493,6 @@ public class TeleOp2 extends LinearOpMode {
             }
         }
 
-        // Final global clamp and apply
         outputPower = Math.max(-MAX_TURRET_POWER, Math.min(MAX_TURRET_POWER, outputPower));
         turretMotor.setPower(outputPower);
 
@@ -496,10 +517,11 @@ public class TeleOp2 extends LinearOpMode {
         }
 
         telemetry.addLine("--- STATUS ---");
-        telemetry.addData("Auto-Track",   autoTrackEnabled ? "ON" : "OFF");
-        telemetry.addData("Turret Enc",   turretMotor.getCurrentPosition());
-        telemetry.addData("Target Found", result != null && result.isValid());
-        telemetry.addData("Shooter RPM",  (int) targetRPM);
+        telemetry.addData("Auto-Track",    autoTrackEnabled ? "ON" : "OFF");
+        telemetry.addData("Turret Enc",    turretMotor.getCurrentPosition());
+        telemetry.addData("Target Found",  result != null && result.isValid());
+        telemetry.addData("Shooter RPM",   (int) targetRPM);
+        telemetry.addData("Outtake State", outtakeState.toString());
         telemetry.update();
     }
 
