@@ -30,19 +30,27 @@ public class Auto_nomous extends LinearOpMode {
     private VoltageSensor voltageSensor;
     private Servo Gate;
     private Servo transferBlocker;
+    private Servo hoodServo1, hoodServo2;
+
+    // Hood angle — starts at 0.7, drops 0.02 per 200 ticks of velocity drop (ball launch)
+    private static final double HOOD_POS_START = 0.7;
+    private static final double HOOD_DROP_PER_LAUNCH = 0.02;
+    private static final double LAUNCH_DROP_THRESHOLD = 300.0;  // ticks/sec velocity drop = ball fired
+    private double currentHoodPos = HOOD_POS_START;
+    private double lastAvgVelocity = 0;
 
     // =======================
     // Shooter Constants
     // =======================
     private static final double TICKS_PER_REV      = 28.0;
     private static final double NOMINAL_VOLTAGE    = 12.0;
-    private static final double TARGET_RPM_INITIAL = 1550;
-    private static final double TARGET_RPM_FUTURE  = 2025;
+    private static final double TARGET_RPM_INITIAL = 2400;
+    private static final double TARGET_RPM_FUTURE  = 2400;
 
-    private static final double kP_shooter = 0.006;
-    private static final double kI_shooter = 0.0005;
-    private static final double kD_shooter = 0.0002;
-    private static final double kF_shooter = 0.00620;
+    private static final double kP_shooter = 0.0015;
+    private static final double kI_shooter = 0.0004;
+    private static final double kD_shooter = 0.00010;
+    private static final double kF_shooter = 0.00045;
 
     private PIDFMotorController leftController;
     private PIDFMotorController rightController;
@@ -73,7 +81,7 @@ public class Auto_nomous extends LinearOpMode {
     // =======================
     private final Pose startPose        = new Pose(124, 124, Math.toRadians(45));
     private final Pose shootPose        = new Pose(96,  96,  Math.toRadians(45));
-    private final Pose pickupPose2      = new Pose(100, 61.5,  Math.toRadians(0));
+    private final Pose pickupPose2      = new Pose(100, 60.5,  Math.toRadians(0));
     private final Pose afterIntake1     = new Pose(132, 61.5,  Math.toRadians(0));
     private final Pose clearPose        = new Pose(128, 63,   Math.toRadians(0));
     private final Pose pickFromClearPose = new Pose(134, 56,  Math.toRadians(60));
@@ -133,6 +141,11 @@ public class Auto_nomous extends LinearOpMode {
         shooterRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         shooterLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         shooterRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+
+        hoodServo1 = hardwareMap.servo.get("angleChange1");
+        hoodServo2 = hardwareMap.servo.get("angleChange2");
+        hoodServo1.setPosition(HOOD_POS_START);
+        hoodServo2.setPosition(HOOD_POS_START);
 
         Gate = hardwareMap.servo.get("Gate");
         Gate.setPosition(GATE_CLOSED);
@@ -202,9 +215,11 @@ public class Auto_nomous extends LinearOpMode {
             telemetry.addData("Timer (s)", String.format("%.2f", actionTimer.getElapsedTimeSeconds()));
             double rpmL = shooterLeft.getVelocity()  * 60.0 / TICKS_PER_REV;
             double rpmR = shooterRight.getVelocity() * 60.0 / TICKS_PER_REV;
-            telemetry.addData("Left RPM",  (int) rpmL);
-            telemetry.addData("Right RPM", (int) rpmR);
+            double avgRPM = (rpmL + rpmR) / 2.0;
+            telemetry.addData("RPM", String.format("L:%d R:%d Avg:%d", (int) rpmL, (int) rpmR, (int) avgRPM));
             telemetry.addData("Target RPM", (int) activeTargetRPM);
+            telemetry.addData("RPM Error", String.format("%+d", (int)(activeTargetRPM - avgRPM)));
+            telemetry.addData("Hood Pos", String.format("%.3f", currentHoodPos));
             telemetry.addData("Battery", String.format("%.1f V", voltageSensor.getVoltage()));
             telemetry.update();
         }
@@ -225,6 +240,16 @@ public class Auto_nomous extends LinearOpMode {
                 activeTargetRPM, shooterRight.getVelocity(), voltage, NOMINAL_VOLTAGE);
         shooterLeft.setPower(powerL);
         shooterRight.setPower(powerR);
+
+        // Detect ball launch: velocity drop > 200 ticks/sec means a ball just fired
+        double avgVelocity = (shooterLeft.getVelocity() + shooterRight.getVelocity()) / 2.0;
+        double velocityDrop = lastAvgVelocity - avgVelocity;
+        if (velocityDrop >= LAUNCH_DROP_THRESHOLD && lastAvgVelocity > 0) {
+            currentHoodPos = Math.min(1.0, currentHoodPos + HOOD_DROP_PER_LAUNCH);
+            hoodServo1.setPosition(currentHoodPos);
+            hoodServo2.setPosition(currentHoodPos);
+        }
+        lastAvgVelocity = avgVelocity;
     }
 
     // ── State Machine ──────────────────────────────────────────────────────
