@@ -118,6 +118,12 @@ public class TeleOp2 extends LinearOpMode {
     private boolean shooterKilled = false;
     private boolean lastLeftBumper, lastRightBumper, lastTriangle;
 
+    // ================= OUTTAKE SEQUENCE =================
+    private enum OuttakeState { IDLE, RAMPING, GATE_OPEN, TRANSFERRING }
+    private OuttakeState outtakeState = OuttakeState.IDLE;
+    private long outtakeStateStartTime = 0;
+    private static final long RAMP_DELAY_MS = 2000;
+
     private double targetRPM = 0;
     private static final double TICKS_PER_REV  = 28.0;
     private static final double NOMINAL_VOLTAGE = 12.0;
@@ -224,7 +230,6 @@ public class TeleOp2 extends LinearOpMode {
             // ---- INTAKE ----
             if (gamepad1.circle && !lastCircle) intakeOn = !intakeOn;
             lastCircle = gamepad1.circle;
-            middleTransfer.setPower(intakeOn ? 1.0 : 0.0);
 
             // ---- HOOD ANGLE CONTROL (Gamepad1 Y / X) ----
             boolean curY = gamepad1.y;
@@ -241,20 +246,35 @@ public class TeleOp2 extends LinearOpMode {
             boolean tri = gamepad1.triangle;
 
             if (tri && !lastTriangle) {
-                shooterOn = false; shooterKilled = true; targetRPM = 0;
+                // Kill everything and reset outtake sequence
+                shooterOn     = false;
+                shooterKilled = true;
+                targetRPM     = 0;
+                outtakeState  = OuttakeState.IDLE;
                 Gate.setPosition(0.5);
+                // Only stop transfer if not actively intaking
+                if (!intakeOn) middleTransfer.setPower(0.0);
             }
             if (lb && !lastLeftBumper) {
-                shooterOn = true; shooterKilled = false;
-                targetRPM = MAX_SHOOTER_RPM;
-                Gate.setPosition(0.27);
+                shooterOn     = true;
+                shooterKilled = false;
+                targetRPM     = MAX_SHOOTER_RPM;
+                // Begin outtake sequence: ramp up first, gate and transfer follow after delay
+                outtakeState        = OuttakeState.RAMPING;
+                outtakeStateStartTime = System.currentTimeMillis();
             }
             if (rb && !lastRightBumper) {
-                shooterOn = true; shooterKilled = false;
-                targetRPM = 3000;
-                Gate.setPosition(0.27);
+                shooterOn     = true;
+                shooterKilled = false;
+                targetRPM     = 3000;
+                // Begin outtake sequence: ramp up first, gate and transfer follow after delay
+                outtakeState        = OuttakeState.RAMPING;
+                outtakeStateStartTime = System.currentTimeMillis();
             }
             lastLeftBumper = lb; lastRightBumper = rb; lastTriangle = tri;
+
+            // ---- OUTTAKE SEQUENCE STATE MACHINE ----
+            updateOuttakeSequence();
 
             // ---- SHOOTER PIDF ----
             if (!shooterOn || shooterKilled || targetRPM <= 0) {
