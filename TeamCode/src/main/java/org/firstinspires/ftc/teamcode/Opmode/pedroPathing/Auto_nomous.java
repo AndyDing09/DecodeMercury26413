@@ -18,7 +18,7 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 import org.firstinspires.ftc.teamcode.testing.PIDFMotorController;
 
-@Autonomous(name = "Autonomous", group = "Auto")
+@Autonomous(name = "AutonomousRed", group = "Auto")
 public class Auto_nomous extends LinearOpMode {
 
     // =======================
