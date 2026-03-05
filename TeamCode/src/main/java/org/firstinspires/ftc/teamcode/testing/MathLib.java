@@ -19,7 +19,7 @@ public final class MathLib {
     public static final double TARGET_HEIGHT = 1.22;    // goal height in meters
     public static final double LAUNCHER_HEIGHT = 0.32385;    // shooter height in meters
     public static final double MIN_HOOD_ANGLE = 26.0;
-    public static final double MAX_HOOD_ANGLE = 45.0;
+    public static final double MAX_HOOD_ANGLE = 39.5;
     public static final double LAUNCHER_MAX_BALL_VELOCITY = 15.0;
     public static final double MAX_DRIVE_VELOCITY = 15.0;
 
