@@ -33,9 +33,9 @@ public class Auto_nomous extends LinearOpMode {
     private Servo hoodServo1, hoodServo2;
 
     // Hood angle — starts at 0.7, drops 0.02 per 200 ticks of velocity drop (ball launch)
-    private static final double HOOD_POS_START = 0.7;
+    private static final double HOOD_POS_START = 0.5;
     private static final double HOOD_DROP_PER_LAUNCH = 0.02;
-    private static final double LAUNCH_DROP_THRESHOLD = 100.0;  // ticks/sec velocity drop = ball fired
+    private static final double LAUNCH_DROP_THRESHOLD = 300.0;  // ticks/sec velocity drop = ball fired
     private double currentHoodPos = HOOD_POS_START;
     private double lastAvgVelocity = 0;
 
@@ -259,7 +259,7 @@ public class Auto_nomous extends LinearOpMode {
         double avgVelocity = (shooterLeft.getVelocity() + shooterRight.getVelocity()) / 2.0;
         double velocityDrop = lastAvgVelocity - avgVelocity;
         if (velocityDrop >= LAUNCH_DROP_THRESHOLD && lastAvgVelocity > 0) {
-            currentHoodPos = Math.min(1.0, currentHoodPos + HOOD_DROP_PER_LAUNCH);
+            currentHoodPos = Math.max(0.0, currentHoodPos - HOOD_DROP_PER_LAUNCH);
             hoodServo1.setPosition(currentHoodPos);
             hoodServo2.setPosition(currentHoodPos);
         }
@@ -279,12 +279,19 @@ public class Auto_nomous extends LinearOpMode {
                 setState(1);
                 break;
 
-            // STATE 1: Wait to arrive at shoot pose
-            case 1:
+            // STATE 1: Drive to shoot pose — smooth hood ramp during drive
+            case 1: {
+                double driveElapsed = actionTimer.getElapsedTimeSeconds();
+                double rampDuration = 1.0; // seconds to complete one hood step
+                double t = Math.min(1.0, driveElapsed / rampDuration);
+                currentHoodPos = HOOD_POS_START - (t * HOOD_DROP_PER_LAUNCH);
+                hoodServo1.setPosition(currentHoodPos);
+                hoodServo2.setPosition(currentHoodPos);
                 if (!follower.isBusy()) {
                     setState(2);
                 }
                 break;
+            }
 
             // STATE 2: Spinup hold, then open gate and start transfer
             case 2:
@@ -295,11 +302,12 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // STATE 3: Shoot, then close gate and drive to pickup (keep PIDF warm for fast recovery)
+            // STATE 3: Shoot, then close gate, reset hood, drive to pickup
             case 3:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_1) {
                     Gate.setPosition(GATE_CLOSED);
                     middleTransfer.setPower(0);
+                    resetHood();
                     follower.followPath(toPickup2, true);
                     setState(4);
                 }
@@ -353,11 +361,12 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // STATE 9: Shoot, then drive toward clearPose for third pickup (keep PIDF warm)
+            // STATE 9: Shoot, then close gate, reset hood, drive to third pickup
             case 9:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_2) {
                     Gate.setPosition(GATE_CLOSED);
                     middleTransfer.setPower(0);
+                    resetHood();
                     follower.followPath(toClear, true);
                     setState(10);
                 }
@@ -407,11 +416,12 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // STATE 15: Shoot, then close gate (shooter keeps spinning)
+            // STATE 15: Shoot, then close gate, reset hood (shooter keeps spinning)
             case 15:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_2) {
                     Gate.setPosition(GATE_CLOSED);
                     middleTransfer.setPower(0);
+                    resetHood();
                     setState(-1);
                 }
                 break;
@@ -420,6 +430,12 @@ public class Auto_nomous extends LinearOpMode {
                 // Done — shooter keeps spinning, updateShooter() handles PIDF
                 break;
         }
+    }
+
+    private void resetHood() {
+        currentHoodPos = HOOD_POS_START;
+        hoodServo1.setPosition(currentHoodPos);
+        hoodServo2.setPosition(currentHoodPos);
     }
 
     private void setState(int newState) {
