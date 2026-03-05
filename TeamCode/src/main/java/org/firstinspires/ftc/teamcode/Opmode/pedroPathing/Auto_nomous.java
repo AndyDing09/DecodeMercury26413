@@ -87,9 +87,9 @@ public class Auto_nomous extends LinearOpMode {
     private int state = 0;
 
     private static final double SPINUP_TIME_1 = 0.375;
-    private static final double SPINUP_TIME_2 = 0.85;
+    private static final double SPINUP_TIME_2 = 0.575;
     private static final double SHOOT_TIME_1  = 0.5;
-    private static final double SHOOT_TIME_2  = 1.0;
+    private static final double SHOOT_TIME_2  = 0.7;
 
     @Override
     public void runOpMode() {
@@ -159,7 +159,7 @@ public class Auto_nomous extends LinearOpMode {
                 .setLinearHeadingInterpolation(afterIntake1.getHeading(), shootPose.getHeading())
                 .build();
 
-        telemetry.addLine("✅ Initialized — waiting for start");
+        telemetry.addLine("✅ Initialized");
         telemetry.update();
 
         waitForStart();
