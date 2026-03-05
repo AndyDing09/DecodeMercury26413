@@ -3,12 +3,12 @@ package org.firstinspires.ftc.teamcode.testing;
 /**
  * Utility class containing physics calculations for a shooter launcher.
  *
- * The original helper methods lived inside a TeleOp opmode; this standalone
- * class makes them reusable from any opmode (TeleOp2, shooter tests, etc.).
+ * Uses a full ballistics solver with lip clearance, backboard priority,
+ * and constraint-based angle selection (from ShooterControl).
  *
  * All members are static so callers can simply reference
- * `MathLib.distanceToLauncherValues(...)` and
- * `MathLib.interpolateToTicks(...)`.
+ * {@code MathLib.distanceToLauncherValues(...)} and
+ * {@code MathLib.interpolateToTicks(...)}.
  */
 public final class MathLib {
     // prevent instantiation
@@ -17,94 +17,138 @@ public final class MathLib {
     // physical constants (must match robot dimensions)
     public static final double GRAVITY = 9.81;
     public static final double TARGET_HEIGHT = 1.22;    // goal height in meters
-    public static final double LAUNCHER_HEIGHT = 0.2;    // shooter height in meters
-    public static final double MIN_HOOD_ANGLE = 16.0;
-    public static final double MAX_HOOD_ANGLE = 50.0;
-    public static final double LAUNCHER_MAX_BALL_VELOCITY = 15.65;
+    public static final double LAUNCHER_HEIGHT = 0.32385;    // shooter height in meters
+    public static final double MIN_HOOD_ANGLE = 26.0;
+    public static final double MAX_HOOD_ANGLE = 45.0;
+    public static final double LAUNCHER_MAX_BALL_VELOCITY = 15.42;
     public static final double MAX_DRIVE_VELOCITY = 15.0;
 
+    // goal geometry for lip clearance and backboard targeting
+    public static final double GOAL_LIP = 0.45;           // rim horizontal offset (meters)
+    public static final double BACKBOARD_Y_OFFSET = 0.1;  // meters above goal center
+    public static final double LIP_BUFFER = 8 * 0.0254;   // clearance above lip (~0.2032m)
+    public static final double DISTANCE_OFFSET = 0.0;   // no distance sensor — input is true distance
+
     // interpolation tables originally captured from launcher testing
-    private static final double [] INPUT_MS = {-0.01, 0.0, 7.376, 8.9408, 10.2819, 12.07, 13.4112, 14.5288, 15.42288};
+    private static final double[] INPUT_MS = {-0.01, 0.0, 7.376, 8.9408, 10.2819, 12.07, 13.4112, 14.5288, 15.42288};
     private static final double[] OUTPUT_TICKS = {-0.01, 0.0, 933.33, 1166.67, 1400.0, 1633.33, 1866.667, 2100, 2240.0};
+
     /**
-     * Given a horizontal {@code distance} in meters, compute the minimum launcher
-     * velocity (m/s) and optimal hood angle (vertical degrees) required to hit the
-     * target.  If the shot is impossible (angle/velocity limits or physics failures)
-     * the {@link LauncherSolution#velocityMs} field will be {@code NaN}.
+     * Full ballistics solver. Given a horizontal distance to the goal, computes
+     * the required ball velocity and hood angle.
+     *
+     * Priority: tries backboard shot first (flat, fast), falls back to
+     * goal center if backboard is impossible.
      *
      * @param distance horizontal distance to the goal, in meters
      * @return a {@link LauncherSolution} containing the velocity and hood angle
      */
     public static LauncherSolution distanceToLauncherValues(double distance) {
+        distance += DISTANCE_OFFSET;
         if (distance <= 0) {
             return new LauncherSolution(Double.NaN, Double.NaN);
         }
 
+        double g = GRAVITY;
         double x = distance;
-        double deltaY = TARGET_HEIGHT - LAUNCHER_HEIGHT;
+        double xLip = x - GOAL_LIP;
+        double deltaYLip = (TARGET_HEIGHT + LIP_BUFFER) - LAUNCHER_HEIGHT;
 
-        double minVelocitySquared = GRAVITY * (deltaY +
-                Math.sqrt(Math.pow(deltaY, 2) + Math.pow(x, 2)));
-        double minVelocity = Math.sqrt(minVelocitySquared);
+        // Attempt 1: Backboard shot (priority - faster, flatter)
+        double[] result = calculateBestShot(x, TARGET_HEIGHT + BACKBOARD_Y_OFFSET, xLip, deltaYLip, g);
 
-        double tanThetaMin = minVelocitySquared / (GRAVITY * x);
-        double optimalAngleHoriz = Math.toDegrees(Math.atan(tanThetaMin));
-        double optimalAngleVert = 90.0 - optimalAngleHoriz;
-
-        double finalAngleVert;
-        double finalAngleHoriz;
-        boolean forceOverride = false;
-
-        if (distance <= 1) {
-            finalAngleVert = MIN_HOOD_ANGLE;
-            finalAngleHoriz = 90.0 - MIN_HOOD_ANGLE;
-            forceOverride = true;
-        } else if (distance >= 4) {
-            finalAngleVert = MAX_HOOD_ANGLE;
-            finalAngleHoriz = 90.0 - MAX_HOOD_ANGLE;
-            forceOverride = true;
-        } else {
-            finalAngleVert = 0;
-            finalAngleHoriz = 0;
+        // Attempt 2: Goal center fallback
+        if (Double.isNaN(result[0])) {
+            result = calculateBestShot(x, TARGET_HEIGHT, xLip, deltaYLip, g);
         }
 
-        if (!forceOverride) {
-            if (optimalAngleVert >= MIN_HOOD_ANGLE && optimalAngleVert <= MAX_HOOD_ANGLE) {
-                finalAngleVert = optimalAngleVert;
-                finalAngleHoriz = optimalAngleHoriz;
-                if (minVelocity > LAUNCHER_MAX_BALL_VELOCITY) {
-                    return new LauncherSolution(Double.NaN, Double.NaN);
-                }
-                return new LauncherSolution(minVelocity, finalAngleVert);
-            } else if (optimalAngleVert < MIN_HOOD_ANGLE) {
-                finalAngleVert = MIN_HOOD_ANGLE;
-                finalAngleHoriz = 90.0 - MIN_HOOD_ANGLE;
+        return new LauncherSolution(result[0], result[1]);
+    }
+
+    /**
+     * Finds the flattest valid shot (lowest angle that still clears everything).
+     *
+     * Enforces three constraints:
+     *   1. Line-of-sight: angle must be steep enough to reach the target
+     *   2. Lip clearance: trajectory must clear the goal rim by LIP_BUFFER
+     *   3. Hood mechanical limits: angle must be within [MIN, MAX]_HOOD_ANGLE
+     */
+    private static double[] calculateBestShot(double x, double targetY, double xLip, double deltaYLip, double g) {
+        double deltaY = targetY - LAUNCHER_HEIGHT;
+        double minPhysAngleH = 90.0 - MAX_HOOD_ANGLE;  // flattest the hood allows (from horizontal)
+        double maxPhysAngleH = 90.0 - MIN_HOOD_ANGLE;  // steepest the hood allows (from horizontal)
+
+        // Constraint 1: Line-of-sight
+        double minGeomAngle = Math.toDegrees(Math.atan(deltaY / x)) + 0.1;
+
+        // Constraint 2: Lip clearance
+        double minLipH = 0.0;
+        if (xLip > 0) {
+            double num = (deltaY * xLip * xLip) - (deltaYLip * x * x);
+            double den = (x * xLip * xLip) - (xLip * x * x);
+            if (Math.abs(den) > 1e-5) {
+                minLipH = Math.toDegrees(Math.atan(num / den));
             } else {
-                finalAngleVert = MAX_HOOD_ANGLE;
-                finalAngleHoriz = 90.0 - MAX_HOOD_ANGLE;
+                minLipH = 89.9;
             }
         }
 
-        double angleToUseRad = Math.toRadians(finalAngleHoriz);
-        double tanTheta = Math.tan(angleToUseRad);
-        double cosTheta = Math.cos(angleToUseRad);
+        // The angle floor: must satisfy all three constraints
+        double targetAngleH = Math.max(minPhysAngleH, Math.max(minLipH, minGeomAngle));
 
-        double denominator = 2 * (cosTheta * cosTheta) * (x * tanTheta - deltaY);
-        if (denominator <= 0) {
-            return new LauncherSolution(Double.NaN, Double.NaN);
+        // If the floor is steeper than hood allows, impossible
+        if (targetAngleH > maxPhysAngleH) {
+            return new double[]{Double.NaN, Double.NaN};
         }
 
-        double requiredVelocity = Math.sqrt((GRAVITY * x * x) / denominator);
-        if (requiredVelocity > MAX_DRIVE_VELOCITY) {
-            return new LauncherSolution(Double.NaN, Double.NaN);
+        // Calculate velocity for this flattest legal angle
+        double vReq = calculateVelocity(x, deltaY, targetAngleH, g);
+
+        if (!Double.isNaN(vReq) && vReq <= LAUNCHER_MAX_BALL_VELOCITY) {
+            return new double[]{vReq, 90.0 - targetAngleH};  // return as hood angle (from horiz)
         }
 
-        return new LauncherSolution(requiredVelocity, finalAngleVert);
+        // Velocity-limited fallback: max power, solve for best angle
+        double v = LAUNCHER_MAX_BALL_VELOCITY;
+        double A = (g * x * x) / (2.0 * v * v);
+        double B = -x;
+        double C = deltaY + A;
+        double disc = B * B - 4 * A * C;
+
+        if (disc < 0) return new double[]{Double.NaN, Double.NaN};
+
+        double sqrtD = Math.sqrt(disc);
+        double tan1 = (-B - sqrtD) / (2 * A);  // flatter solution
+        double tan2 = (-B + sqrtD) / (2 * A);  // steeper solution
+
+        double a1 = Math.toDegrees(Math.atan(tan1));
+        double a2 = Math.toDegrees(Math.atan(tan2));
+
+        // Prefer flat, then lob
+        if (a1 >= targetAngleH && a1 <= maxPhysAngleH) return new double[]{v, 90.0 - a1};
+        if (a2 >= targetAngleH && a2 <= maxPhysAngleH) return new double[]{v, 90.0 - a2};
+
+        return new double[]{Double.NaN, Double.NaN};
+    }
+
+    /**
+     * Projectile velocity from the kinematic equation:
+     *   v = sqrt( g * x^2 / (2 * cos^2(theta) * (x*tan(theta) - deltaY)) )
+     */
+    private static double calculateVelocity(double x, double deltaY, double angleHoriz, double g) {
+        double angleRad = Math.toRadians(angleHoriz);
+        double tanTheta = Math.tan(angleRad);
+        double cosTheta = Math.cos(angleRad);
+        double denom = 2 * cosTheta * cosTheta * (x * tanTheta - deltaY);
+
+        if (denom <= 1e-9) return Double.NaN;
+
+        return Math.sqrt((g * x * x) / denom);
     }
 
     /**
      * Convert a launcher velocity (m/s) into motor ticks per second using linear
-     * interpolation of calibration data.<br>
+     * interpolation of calibration data.
      * Values outside the table bounds are clamped to the nearest endpoint.
      */
     public static double interpolateToTicks(double velocityMs) {

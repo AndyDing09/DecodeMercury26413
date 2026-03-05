@@ -17,6 +17,9 @@ public class PIDFMotorController {
     private double integralSum = 0;
     private double lastError = 0;
 
+    // Anti-windup: clamp integral accumulator to prevent runaway when output is saturated
+    private static final double MAX_INTEGRAL = 500.0;
+
     // encoder ticks per motor revolution (common values: 28 for many motors)
     private final double ticksPerRev;
 
@@ -79,13 +82,19 @@ public class PIDFMotorController {
 
         double error = targetTicksPerSec - currentTicksPerSec;
         integralSum += error * dt;
+        // Anti-windup: clamp integral to prevent saturation buildup
+        integralSum = Math.max(-MAX_INTEGRAL, Math.min(MAX_INTEGRAL, integralSum));
         double derivative = (error - lastError) / dt;
         lastError = error;
 
         double power = (kP * error) + (kI * integralSum) + (kD * derivative) + (kF * targetTicksPerSec);
 
-        // If target is zero, return zero to avoid holding power
-        if (targetTicksPerSec == 0) return 0.0;
+        // If target is zero, reset state and return zero
+        if (targetTicksPerSec == 0) {
+            integralSum = 0;
+            lastError = 0;
+            return 0.0;
+        }
 
         // clamp
         if (power < 0) power = 0;

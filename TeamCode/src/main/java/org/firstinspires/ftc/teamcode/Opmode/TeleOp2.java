@@ -28,6 +28,18 @@ public class TeleOp2 extends LinearOpMode {
     private VoltageSensor voltageSensor;
     private Servo transferBlocker, Gate;
 
+    // ================= HOOD ANGLE SERVOS =================
+    private Servo hoodServo1, hoodServo2;
+    private double currentHoodAnglePos = 0.5; // Servo position (0.0–1.0), init at 0.5
+    private static final double HOOD_SERVO_INIT = 0.5;
+    private static final double MIN_HOOD_SERVO   = 0.0;
+    private static final double MAX_HOOD_SERVO   = 1.0;
+    private static final double HOOD_ANGLE_STEP  = 0.05; // Per button press adjustment
+
+    // Hood angle gamepad edge detection
+    private boolean lastG1Y = false;
+    private boolean lastG1X = false;
+
     // ================= TURRET =================
     private DcMotorEx turretMotor;
     private Limelight3A limelight;
@@ -37,7 +49,7 @@ public class TeleOp2 extends LinearOpMode {
     // -------------------------------------------------------
     private double kP_large = 0.018;
     private double kD_large = 0.025;
-    private double kF_large = 0.0;      // pure PIDF feedforward (velocity-based, set at runtime)
+    private double kF_large = 0.0;
     private double MAX_OUTPUT_large = 1.0;
 
     // -------------------------------------------------------
@@ -46,34 +58,30 @@ public class TeleOp2 extends LinearOpMode {
     private double kP_small = 0.012;
     private double kD_small = 0.020;
     private double kF_small = 0.0;
-    private double MAX_OUTPUT_small = 0.6;  // cap output in hold mode to reduce jitter
+    private double MAX_OUTPUT_small = 0.6;
 
     // -------------------------------------------------------
     //  Shared tuning constants
     // -------------------------------------------------------
-    // Threshold (degrees) at which we switch large <-> small PIDF
     private double TURRET_THRESHOLD   = 6.0;
-    // Deadzone (degrees) — inside this we call atSetPoint() and cut power
     private double DEADZONE_DEGREES   = 0.3;
-    // Static friction feedforward: added as sign(power)*OPEN_F to overcome stiction
-    // (replaces the old kF_acquire minimum-kick hack with something from the reference)
     private double TURRET_OPEN_F      = 0.015;
-    // Velocity feedforward gain: power += txVelocity * VEL_FF
-    // This is the KEY fix for the skip/delay — we predict where the target will be next frame
     private double TURRET_VEL_FF      = 0.003;
-    // Nominal voltage for power compensation
     private static final double DEFAULT_VOLTAGE = 12.0;
 
     private static final double MAX_TURRET_POWER  = 1.0;
     private static final double FAST_SEARCH_POWER = 0.35;
 
-    // How many frames with no target before starting sweep (1 = immediate)
     private int TARGET_LOSS_THRESHOLD = 1;
 
     // ================= TURRET LIMITS =================
-    private static final int LEFT_LIMIT      = -430;
-    private static final int RIGHT_LIMIT     =  450;
+    private static final int LEFT_LIMIT      = -400;
+    private static final int RIGHT_LIMIT     =  400;
     private static final int CENTER_POSITION =    0;
+
+    private static final double BRAKE_VEL_THRESHOLD = 80.0;
+    private static final double BRAKE_POWER         = 0.25;
+    private double kEncoderDamp = 0.0002;
 
     private static final boolean AUTO_CENTER_ON_INIT = true;
     private static final double  INIT_POWER          = 1.0;
@@ -81,18 +89,19 @@ public class TeleOp2 extends LinearOpMode {
 
     // ================= TURRET STATE =================
     private double  lastTx              = 0;
-    private boolean lastTxValid         = false;  // true once we have a real frame to D-off of
-    private double  txVelocity          = 0;      // deg/frame — used for velocity feedforward
+    private boolean lastTxValid         = false;
+    private double  txVelocity          = 0;
     private boolean scanningRight       = true;
     private boolean autoTrackEnabled    = false;
     private boolean turretInitialized   = false;
     private boolean wasSearching        = false;
+    private boolean braking             = false;
     private int     framesOnTarget      = 0;
     private int     framesWithoutTarget = 0;
 
     // ================= TUNING UI STATE =================
     private int    selectedParam  = 0;
-    private static final int    NUM_PARAMS   = 9;
+    private static final int    NUM_PARAMS   = 10;
     private static final double STEP_FINE    = 0.001;
     private static final double STEP_COARSE  = 0.01;
     private boolean lastDpadUp    = false;
@@ -114,12 +123,17 @@ public class TeleOp2 extends LinearOpMode {
     private static final double NOMINAL_VOLTAGE = 12.0;
     private static final double MAX_SHOOTER_RPM = 4800.0;
 
-    private double kP_shooter_low  = 0.006, kI_shooter_low  = 0.0005, kD_shooter_low  = 0.0002, kF_shooter_low  = 0.00620;
-    private double kP_shooter_high = 0.007, kI_shooter_high = 0.0008, kD_shooter_high = 0.0003, kF_shooter_high = 0.00520;
+    private double kP_shooter_low  = 0.0012, kI_shooter_low  = 0.0003, kD_shooter_low  = 0.00008, kF_shooter_low  = 0.00045;
+    private double kP_shooter_high = 0.0015, kI_shooter_high = 0.0004, kD_shooter_high = 0.00010, kF_shooter_high = 0.00045;
     private double kP_shooter, kI_shooter, kD_shooter, kF_shooter;
 
     private PIDFMotorController leftController  = null;
     private PIDFMotorController rightController = null;
+
+    // Ball launch detection
+    private double lastShooterVelocity = 0;
+    private static final double LAUNCH_DROP_THRESHOLD = 200.0;
+    private static final double HOOD_DIP_AMOUNT = 0.05; // servo position units to dip on launch
 
     private final double ServoStart = 0.5;
 
@@ -139,6 +153,12 @@ public class TeleOp2 extends LinearOpMode {
         Gate            = hardwareMap.servo.get("Gate");
         turretMotor     = hardwareMap.get(DcMotorEx.class, "turretMotor");
         limelight       = hardwareMap.get(Limelight3A.class, "limelight");
+
+        // ================= HOOD ANGLE SERVOS =================
+        hoodServo1 = hardwareMap.servo.get("angleChange1");
+        hoodServo2 = hardwareMap.servo.get("angleChange2");
+        currentHoodAnglePos = HOOD_SERVO_INIT;
+        updateHoodServos(currentHoodAnglePos);
 
         frontLeftDrive .setDirection(DcMotor.Direction.REVERSE);
         backLeftDrive  .setDirection(DcMotor.Direction.REVERSE);
@@ -163,7 +183,7 @@ public class TeleOp2 extends LinearOpMode {
         transferBlocker.setPosition(ServoStart);
         Gate.setPosition(0.5);
 
-        telemetry.addLine("Ready. Gamepad2: UP/DOWN=cycle param, LEFT/RIGHT=adjust, LB=coarse, A=reset enc, X=track");
+        telemetry.addLine("Ready. GP1: Y/X=Hood Up/Down | GP2: UP/DOWN=cycle param, LEFT/RIGHT=adjust, LB=coarse, A=reset enc, X=track");
         telemetry.update();
 
         if (AUTO_CENTER_ON_INIT) centerTurret();
@@ -206,6 +226,15 @@ public class TeleOp2 extends LinearOpMode {
             lastCircle = gamepad1.circle;
             middleTransfer.setPower(intakeOn ? 1.0 : 0.0);
 
+            // ---- HOOD ANGLE CONTROL (Gamepad1 Y / X) ----
+            boolean curY = gamepad1.y;
+            boolean curX = gamepad1.x;
+            if (curY && !lastG1Y) currentHoodAnglePos = Math.min(MAX_HOOD_SERVO, currentHoodAnglePos + HOOD_ANGLE_STEP);
+            if (curX && !lastG1X) currentHoodAnglePos = Math.max(MIN_HOOD_SERVO, currentHoodAnglePos - HOOD_ANGLE_STEP);
+            lastG1Y = curY;
+            lastG1X = curX;
+            updateHoodServos(currentHoodAnglePos);
+
             // ---- SHOOTER ----
             boolean lb  = gamepad1.left_bumper;
             boolean rb  = gamepad1.right_bumper;
@@ -233,6 +262,7 @@ public class TeleOp2 extends LinearOpMode {
                 shooterRight.setPower(0);
                 if (leftController  != null) leftController .reset();
                 if (rightController != null) rightController.reset();
+                lastShooterVelocity = 0;
             } else {
                 if (targetRPM >= 3600) {
                     kP_shooter = kP_shooter_high; kI_shooter = kI_shooter_high;
@@ -245,11 +275,32 @@ public class TeleOp2 extends LinearOpMode {
                 if (rightController != null) rightController.setTunings(kP_shooter, kI_shooter, kD_shooter, kF_shooter);
 
                 double currentVoltage = voltageSensor.getVoltage();
+                double avgVelocity = (shooterLeft.getVelocity() + shooterRight.getVelocity()) / 2.0;
                 double powerLeft  = leftController .computePowerForTargetRPMWithVoltageCompensation(targetRPM, shooterLeft .getVelocity(), currentVoltage, NOMINAL_VOLTAGE);
                 double powerRight = rightController.computePowerForTargetRPMWithVoltageCompensation(targetRPM, shooterRight.getVelocity(), currentVoltage, NOMINAL_VOLTAGE);
 
                 shooterLeft .setPower(powerLeft);
                 shooterRight.setPower(powerRight);
+
+                // ---- BALL LAUNCH DETECTION ----
+                // A sudden velocity drop of 200+ ticks/sec means a ball just fired.
+                // Dip BOTH the Gate AND the hood angle servos down by 0.05 to help feed next ball.
+                double velocityDrop = lastShooterVelocity - avgVelocity;
+                if (velocityDrop > LAUNCH_DROP_THRESHOLD && lastShooterVelocity > 0) {
+                    // Ball fired! Dip Gate servo
+                    double dippedGate = Math.max(0.0, Math.min(1.0, 0.27 - HOOD_DIP_AMOUNT));
+                    Gate.setPosition(dippedGate);
+
+                    // Dip hood angle servos down by 0.05
+                    double dippedHood = Math.max(MIN_HOOD_SERVO, currentHoodAnglePos - HOOD_DIP_AMOUNT);
+                    updateHoodServos(dippedHood);
+                } else {
+                    // Gradually restore Gate to 0.27
+                    Gate.setPosition(0.27);
+                    // Restore hood servos to driver-set position
+                    updateHoodServos(currentHoodAnglePos);
+                }
+                lastShooterVelocity = avgVelocity;
 
                 double rpmL = shooterLeft .getVelocity() * 60.0 / TICKS_PER_REV;
                 double rpmR = shooterRight.getVelocity() * 60.0 / TICKS_PER_REV;
@@ -257,6 +308,7 @@ public class TeleOp2 extends LinearOpMode {
                 telemetry.addData("LeftRPM",  (int) rpmL);
                 telemetry.addData("RightRPM", (int) rpmR);
                 telemetry.addData("Battery",  String.format("%.1f V", currentVoltage));
+                telemetry.addData("Hood Servo Pos", String.format("%.3f", currentHoodAnglePos));
             }
 
             updateTurretTuning();
@@ -266,6 +318,17 @@ public class TeleOp2 extends LinearOpMode {
 
         limelight.stop();
         turretMotor.setPower(0);
+    }
+
+    // ===================================================================
+    //  HOOD SERVO HELPERS
+    // ===================================================================
+
+    /** Sets both hood servos to the same position (0.0–1.0). */
+    private void updateHoodServos(double position) {
+        position = Math.max(MIN_HOOD_SERVO, Math.min(MAX_HOOD_SERVO, position));
+        hoodServo1.setPosition(position);
+        hoodServo2.setPosition(position);
     }
 
     // ===================================================================
@@ -302,6 +365,7 @@ public class TeleOp2 extends LinearOpMode {
             case 6: TURRET_OPEN_F    = Math.max(0,   TURRET_OPEN_F    + delta);      break;
             case 7: TURRET_VEL_FF    = Math.max(0,   TURRET_VEL_FF    + delta);      break;
             case 8: MAX_OUTPUT_small = Math.max(0.1, Math.min(1.0, MAX_OUTPUT_small + delta * 5)); break;
+            case 9: kEncoderDamp     = Math.max(0,   kEncoderDamp     + delta);      break;
         }
     }
 
@@ -316,6 +380,7 @@ public class TeleOp2 extends LinearOpMode {
             case 6: return "OPEN_F (stiction)";
             case 7: return "VEL_FF";
             case 8: return "MAX_OUT_small";
+            case 9: return "ENC_DAMP";
             default: return "?";
         }
     }
@@ -331,20 +396,13 @@ public class TeleOp2 extends LinearOpMode {
             case 6: return TURRET_OPEN_F;
             case 7: return TURRET_VEL_FF;
             case 8: return MAX_OUTPUT_small;
+            case 9: return kEncoderDamp;
             default: return 0;
         }
     }
 
     // ===================================================================
     //  TURRET TRACKING
-    //
-    //  Structure mirrors the reference Turret.java:
-    //    - Large PIDF when |error| > TURRET_THRESHOLD  (was: ACQUISITION mode)
-    //    - Small PIDF when |error| <= TURRET_THRESHOLD (was: HOLD mode)
-    //    - atSetPoint() cuts power (replaces frame counter)
-    //    - OPEN_F static feedforward overcomes stiction on first movement
-    //    - VEL_FF velocity feedforward predicts target motion (fixes skip/delay)
-    //    - Hard limit guard: don't push further if already past encoder limits
     // ===================================================================
     private void updateTurretTracking() {
         if (gamepad2.cross) {
@@ -355,13 +413,17 @@ public class TeleOp2 extends LinearOpMode {
             framesWithoutTarget = 0;
             framesOnTarget      = 0;
             wasSearching        = false;
+            braking             = false;
             sleep(200);
         }
 
         LLResult result      = limelight.getLatestResult();
         int      currentPos  = turretMotor.getCurrentPosition();
+        double   encoderVel  = turretMotor.getVelocity();
         double   outputPower = 0;
         String   mode        = "IDLE";
+        boolean  atLeftLimit  = currentPos <= LEFT_LIMIT;
+        boolean  atRightLimit = currentPos >= RIGHT_LIMIT;
 
         // 1. MANUAL OVERRIDE
         if (Math.abs(gamepad2.right_stick_x) > 0.2) {
@@ -371,6 +433,7 @@ public class TeleOp2 extends LinearOpMode {
             framesWithoutTarget = 0;
             framesOnTarget      = 0;
             wasSearching        = false;
+            braking             = false;
             lastTxValid         = false;
             txVelocity          = 0;
         }
@@ -380,78 +443,87 @@ public class TeleOp2 extends LinearOpMode {
             double absTx = Math.abs(tx);
             framesWithoutTarget = 0;
 
-            // Seed lastTx on first valid frame after search/init so D-term starts at zero.
-            // Also compute txVelocity for the velocity feedforward term.
-            if (wasSearching || !lastTxValid) {
+            if (wasSearching && !braking) {
+                braking     = true;
                 lastTx      = tx;
-                txVelocity  = 0;
                 lastTxValid = true;
-                wasSearching   = false;
-                framesOnTarget = 0;
-            } else {
-                // txVelocity = how many degrees the target moved since last frame
-                // Positive = target moving right, negative = moving left
-                txVelocity = tx - lastTx;
+                txVelocity  = 0;
             }
 
-            // Choose PIDF coefficients and output cap based on error size
-            // (mirrors reference: LARGE coefficients when far, SMALL when close)
-            double kP, kD, maxOut;
-            if (absTx > TURRET_THRESHOLD) {
-                kP     = kP_large;
-                kD     = kD_large;
-                maxOut = MAX_OUTPUT_large;
-                mode   = "TRACKING (LARGE)";
-                framesOnTarget = 0;
-            } else {
-                kP     = kP_small;
-                kD     = kD_small;
-                maxOut = MAX_OUTPUT_small;
-                mode   = "LOCKED";
-                framesOnTarget++;
+            if (braking) {
+                if (Math.abs(encoderVel) > BRAKE_VEL_THRESHOLD) {
+                    outputPower = -Math.signum(encoderVel) * BRAKE_POWER;
+                    mode        = "BRAKING";
+                    lastTx      = tx;
+                } else {
+                    braking        = false;
+                    wasSearching   = false;
+                    lastTx         = tx;
+                    txVelocity     = 0;
+                    framesOnTarget = 0;
+                }
             }
 
-            // atSetPoint() equivalent: inside deadzone → zero power
-            boolean atSetPoint = absTx <= DEADZONE_DEGREES;
+            if (!braking) {
+                if (!lastTxValid) {
+                    lastTx         = tx;
+                    txVelocity     = 0;
+                    lastTxValid    = true;
+                    wasSearching   = false;
+                    framesOnTarget = 0;
+                } else {
+                    txVelocity = tx - lastTx;
+                }
 
-            if (!atSetPoint) {
-                // PD positional control output  (mirrors: power = controller.calculate(position))
-                outputPower = -((kP * tx) + (kD * (tx - lastTx)));
+                double kP, kD, maxOut;
+                if (absTx > TURRET_THRESHOLD) {
+                    kP     = kP_large;
+                    kD     = kD_large;
+                    maxOut = MAX_OUTPUT_large;
+                    mode   = "TRACKING (LARGE)";
+                    framesOnTarget = 0;
+                } else {
+                    kP     = kP_small;
+                    kD     = kD_small;
+                    maxOut = MAX_OUTPUT_small;
+                    mode   = "LOCKED";
+                    framesOnTarget++;
+                }
 
-                // Static feedforward: overcome stiction just like reference TURRET_OPEN_F
-                // Added as sign(power) * OPEN_F, voltage-compensated
-                double voltage       = voltageSensor.getVoltage();
-                double voltageScale  = DEFAULT_VOLTAGE / voltage;
-                outputPower += TURRET_OPEN_F * voltageScale * Math.signum(outputPower);
+                boolean atSetPoint = absTx <= DEADZONE_DEGREES;
 
-                // Velocity feedforward: predicts where the target will be next frame.
-                // This is the key fix for the delay/skip — the turret leads the target
-                // instead of always reacting one frame late.
-                // Mirrors reference:  power += targetVel * TURRET_VEL_FF * voltageScale
-                outputPower += txVelocity * TURRET_VEL_FF * voltageScale;
+                if (!atSetPoint) {
+                    outputPower = -((kP * tx) + (kD * (tx - lastTx)));
+                    outputPower -= encoderVel * kEncoderDamp;
 
-                // Clamp to mode-specific max output
-                outputPower = Math.max(-maxOut, Math.min(maxOut, outputPower));
-            } else {
-                // At setpoint — cut power entirely (mirrors reference atSetPoint() check)
-                outputPower = 0;
-                mode        = "LOCKED OK";
+                    double voltage      = voltageSensor.getVoltage();
+                    double voltageScale = DEFAULT_VOLTAGE / voltage;
+                    outputPower += TURRET_OPEN_F * voltageScale * Math.signum(outputPower);
+                    outputPower += txVelocity * TURRET_VEL_FF * voltageScale;
+                    outputPower = Math.max(-maxOut, Math.min(maxOut, outputPower));
+                } else {
+                    outputPower = 0;
+                    mode        = "LOCKED OK";
+                }
+
+                if ((atRightLimit && outputPower > 0) ||
+                        (atLeftLimit && outputPower < 0)) {
+                    outputPower    = 0;
+                    autoTrackEnabled = true;
+                    wasSearching     = true;
+                    scanningRight    = !atRightLimit;
+                    lastTxValid      = false;
+                    mode             = "LIMIT->SEARCH";
+                }
+
+                lastTx = tx;
             }
-
-            // Hard limit guard (mirrors reference limit check):
-            // Don't drive further into a hardware limit
-            if ((currentPos >= RIGHT_LIMIT && outputPower > 0) ||
-                    (currentPos <= LEFT_LIMIT  && outputPower < 0)) {
-                outputPower = 0;
-                mode        = "AT LIMIT";
-            }
-
-            lastTx = tx;  // save after calculation for next frame's D-term and velocity
         }
         // 3. SEARCH SWEEP
         else if (autoTrackEnabled) {
             framesWithoutTarget++;
             lastTxValid = false;
+            braking     = false;
             txVelocity  = 0;
 
             if (framesWithoutTarget < TARGET_LOSS_THRESHOLD) {
@@ -463,15 +535,14 @@ public class TeleOp2 extends LinearOpMode {
                 wasSearching   = true;
                 framesOnTarget = 0;
 
-                if      (currentPos >= RIGHT_LIMIT) scanningRight = false;
-                else if (currentPos <= LEFT_LIMIT)  scanningRight = true;
+                if (atRightLimit)      scanningRight = false;
+                else if (atLeftLimit)  scanningRight = true;
 
                 outputPower = scanningRight ? FAST_SEARCH_POWER : -FAST_SEARCH_POWER;
                 mode += scanningRight ? " ->" : " <-";
             }
         }
 
-        // Final global clamp and apply
         outputPower = Math.max(-MAX_TURRET_POWER, Math.min(MAX_TURRET_POWER, outputPower));
         turretMotor.setPower(outputPower);
 
@@ -479,6 +550,7 @@ public class TeleOp2 extends LinearOpMode {
         telemetry.addData("tx Error",       result != null && result.isValid()
                 ? String.format("%.2f deg", result.getTx()) : "N/A");
         telemetry.addData("tx Velocity",    String.format("%.3f deg/frame", txVelocity));
+        telemetry.addData("Enc Velocity",   String.format("%.0f ticks/s", encoderVel));
         telemetry.addData("Frames Stable",  framesOnTarget);
     }
 
@@ -496,10 +568,11 @@ public class TeleOp2 extends LinearOpMode {
         }
 
         telemetry.addLine("--- STATUS ---");
-        telemetry.addData("Auto-Track",   autoTrackEnabled ? "ON" : "OFF");
-        telemetry.addData("Turret Enc",   turretMotor.getCurrentPosition());
-        telemetry.addData("Target Found", result != null && result.isValid());
-        telemetry.addData("Shooter RPM",  (int) targetRPM);
+        telemetry.addData("Auto-Track",     autoTrackEnabled ? "ON" : "OFF");
+        telemetry.addData("Turret Enc",     turretMotor.getCurrentPosition());
+        telemetry.addData("Target Found",   result != null && result.isValid());
+        telemetry.addData("Shooter RPM",    (int) targetRPM);
+        telemetry.addData("Hood Pos",       String.format("%.3f", currentHoodAnglePos));
         telemetry.update();
     }
 

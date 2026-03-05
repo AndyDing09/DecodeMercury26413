@@ -5,6 +5,8 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 @TeleOp(name="LauncherMathTest", group="Testing")
@@ -13,39 +15,66 @@ public class launchermathtest extends LinearOpMode {
     // ================= MOTORS =================
     private DcMotorEx shooterLeft;
     private DcMotorEx shooterRight;
+    private VoltageSensor voltageSensor;
+    private static final double NOMINAL_VOLTAGE = 12.0;
 
     // ================= PHYSICS & DISTANCE VARIABLES =================
     private double targetDistance = 2.0; // Start at 2 meters
 
     // IMPORTANT: Make sure these match your robot's physical dimensions!
     private static final double GRAVITY = 9.81;
-    private static final double TARGET_HEIGHT = 1.22; // Height of the goal in meters (adjust to reality)
-    private static final double LAUNCHER_HEIGHT = 0.2; // Height of your shooter in meters
-    private static final double MIN_HOOD_ANGLE = 16.0;
-    private static final double MAX_HOOD_ANGLE = 50.0;
-    private static final double LAUNCHER_MAX_BALL_VELOCITY = 15.42; // Max achievable physical speed
+    private static final double TARGET_HEIGHT = 1.22;          // Height of the goal in meters
+    private static final double LAUNCHER_HEIGHT = 0.32385;     // Height of your shooter in meters
+    private static final double MIN_HOOD_ANGLE = 26.0;
+    private static final double MAX_HOOD_ANGLE = 45.0;
+
+    // ================= SERVOS - HOOD ANGLE CONTROL =================
+    private Servo hoodServo1;
+    private Servo hoodServo2;
+    private double currentHoodAngle = MIN_HOOD_ANGLE;
+
+    // ================= GEAR RATIO CONSTANTS =================
+    // Small gear on servo axle, large gear on hood pivot
+    private static final double SMALL_GEAR_DIAMETER = 57.25;  // mm (servo-driven gear)
+    private static final double LARGE_GEAR_DIAMETER = 375.0;   // mm (hood output gear)
+    private static final double GEAR_RATIO = LARGE_GEAR_DIAMETER / SMALL_GEAR_DIAMETER; // ~6.55:1
+    // Servo position 0.5 = MIN_HOOD_ANGLE (lowest point)
+    // Standard servo: position 0.0-1.0 = 180 degrees of rotation
+    // 1 degree of hood change requires GEAR_RATIO degrees of servo rotation
+    // In servo units: GEAR_RATIO / 180.0 per degree of hood angle
+    private static final double SERVO_START_POS = 0.5;
+    private static final double SERVO_UNITS_PER_HOOD_DEGREE = GEAR_RATIO / 180.0;
+    // Servo DECREASES from 0.5 to raise the hood (0.5 = lowest, 0.0 = highest)
+    // Max reachable hood angle given servo range [0.5, 0.0] = 90 deg servo / GEAR_RATIO
+    private static final double MAX_REACHABLE_HOOD_ANGLE = MIN_HOOD_ANGLE + SERVO_START_POS * 180.0 / GEAR_RATIO;
+    private static final double LAUNCHER_MAX_BALL_VELOCITY = 15.42;
     private static final double MAX_DRIVE_VELOCITY = 15.0;
+
+    // Goal geometry for lip clearance and backboard targeting
+    private static final double GOAL_LIP = 0.45;
+    private static final double BACKBOARD_Y_OFFSET = 0.1;
+    private static final double LIP_BUFFER = 8 * 0.0254;
+    private static final double DISTANCE_OFFSET = 0.0;  // no distance sensor — input is true distance
 
     // Ticks per revolution (used for RPM telemetry calculation)
     private static final double TICKS_PER_REV = 28.0;
+    // Max motor velocity in ticks/sec (28 ticks/rev * ~4800 RPM / 60)
+    private static final double MAX_MOTOR_TICKS_PER_SEC = 2240.0;
 
     // Gamepad 1 Edge Detection
     private boolean lastG1DpadUp = false, lastG1DpadDown = false;
     private boolean lastG1RightBumper = false, lastG1LeftBumper = false;
+    private boolean lastG1Y = false, lastG1X = false;
 
-    // ================= CUSTOM PIDF VARIABLES =================
-    private double kP = 0.002;
-    private double kI = 0.000;
-    private double kD = 0.0001;
-    private double kF = 0.0003;
+    // ================= SHOOTER PIDF (uses PIDFMotorController, same as TeleOp2) =================
+    // Aggressive gains for fast recovery after ball launch
+    private double kP = 0.0012;
+    private double kI = 0.0003;
+    private double kD = 0.00008;
+    private double kF = 0.00045;
 
-    // Split error tracking for independent motor control
-    private double integralSumLeft = 0;
-    private double lastErrorLeft = 0;
-    private double integralSumRight = 0;
-    private double lastErrorRight = 0;
-
-    private ElapsedTime pidTimer = new ElapsedTime();
+    private PIDFMotorController leftController  = null;
+    private PIDFMotorController rightController = null;
 
     // Tuning selection state
     private enum TuneState { P, I, D, F }
@@ -57,9 +86,12 @@ public class launchermathtest extends LinearOpMode {
 
     @Override
     public void runOpMode() {
-        // HARDWARE MAP
+        // ================= HARDWARE MAP =================
         shooterLeft = hardwareMap.get(DcMotorEx.class, "shooterLeft");
         shooterRight = hardwareMap.get(DcMotorEx.class, "shooterRight");
+        voltageSensor = hardwareMap.voltageSensor.iterator().next();
+        hoodServo1 = hardwareMap.servo.get("hoodServo1");
+        hoodServo2 = hardwareMap.servo.get("hoodServo2");
 
         shooterLeft.setDirection(DcMotorSimple.Direction.FORWARD);
         shooterRight.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -70,18 +102,23 @@ public class launchermathtest extends LinearOpMode {
         shooterLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         shooterRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
-        telemetry.addLine("✅ Physics Shooter Initialized");
-        telemetry.addLine("--- GAMEPAD 1 (SIMULATE DISTANCE) ---");
-        telemetry.addLine("D-Pad Up/Down: +/- 0.1 Meters");
-        telemetry.addLine("Bumpers: +/- 0.5 Meters");
-        telemetry.addLine("A: Shut Off | B: Reset to 2.0m");
+        // Initialize hood to lowest position (servo 0.5)
+        currentHoodAngle = MIN_HOOD_ANGLE;
+        updateHoodServoPosition(currentHoodAngle);
+
+        telemetry.addLine("Physics Shooter Initialized");
+        telemetry.addLine("--- GAMEPAD 1 ---");
+        telemetry.addLine("D-Pad Up/Down: +/- 0.1m | Bumpers: +/- 0.5m");
+        telemetry.addLine("Y/X: +/- 1 deg hood | A: Off | B: Reset 2.0m");
+        telemetry.addData("Max Reachable Hood", "%.1f deg", MAX_REACHABLE_HOOD_ANGLE);
         telemetry.addLine("--- GAMEPAD 2 (TUNING) ---");
-        telemetry.addLine("D-Pad L/R: Select P, I, D, or F");
-        telemetry.addLine("D-Pad U/D: Adjust value");
+        telemetry.addLine("D-Pad L/R: Select P,I,D,F | U/D: Adjust");
         telemetry.update();
 
         waitForStart();
-        pidTimer.reset();
+
+        leftController  = new PIDFMotorController(kP, kI, kD, kF, TICKS_PER_REV);
+        rightController = new PIDFMotorController(kP, kI, kD, kF, TICKS_PER_REV);
 
         while (opModeIsActive()) {
 
@@ -106,6 +143,22 @@ public class launchermathtest extends LinearOpMode {
                 integralSumRight = 0;
             }
 
+            // ================= GAMEPAD 1: HOOD ANGLE CONTROL =================
+            boolean currentG1Y = gamepad1.y;
+            boolean currentG1X = gamepad1.x;
+
+            if (currentG1Y && !lastG1Y) currentHoodAngle += 1.0;
+            if (currentG1X && !lastG1X) currentHoodAngle -= 1.0;
+
+            // Clamp to valid range (physical limit is MAX_REACHABLE_HOOD_ANGLE)
+            double effectiveMax = Math.min(MAX_HOOD_ANGLE, MAX_REACHABLE_HOOD_ANGLE);
+            if (currentHoodAngle < MIN_HOOD_ANGLE) currentHoodAngle = MIN_HOOD_ANGLE;
+            if (currentHoodAngle > effectiveMax) currentHoodAngle = effectiveMax;
+
+            updateHoodServoPosition(currentHoodAngle);
+
+            lastG1Y = currentG1Y;
+            lastG1X = currentG1X;
             lastG1DpadUp = currentG1DpadUp;
             lastG1DpadDown = currentG1DpadDown;
             lastG1RightBumper = currentG1RightBumper;
@@ -154,156 +207,191 @@ public class launchermathtest extends LinearOpMode {
 
             // ================= PHYSICS & INTERPOLATION =================
             double[] calculatedValues = distanceToLauncherValues(targetDistance);
-            double requiredVelocityMS = calculatedValues[0]; // Velocity in m/s
-            double requiredHoodAngle = calculatedValues[1];  // Angle in degrees
+            double requiredVelocityMS = calculatedValues[0];
+            double requiredHoodAngle = calculatedValues[1];
 
             double targetVelocityTicks = 0;
 
-            // Only apply velocity if physics returned a valid/possible number
             if (!Double.isNaN(requiredVelocityMS) && targetDistance > 0) {
                 targetVelocityTicks = interpolateToTicks(requiredVelocityMS);
             }
 
-            // ================= CUSTOM PIDF MATH =================
-            double currentVelocityLeft = shooterLeft.getVelocity();
+            // ================= SHOOTER PIDF (PIDFMotorController + voltage comp) =================
+            // Update tunings live (for gamepad2 adjustment)
+            leftController .setTunings(kP, kI, kD, kF);
+            rightController.setTunings(kP, kI, kD, kF);
+
+            double currentVelocityLeft  = shooterLeft.getVelocity();
             double currentVelocityRight = shooterRight.getVelocity();
+            double currentVoltage = voltageSensor.getVoltage();
 
-            double dt = pidTimer.seconds();
-            pidTimer.reset();
+            // Convert target ticks/sec to RPM for PIDFMotorController
+            double targetRPMCalc = targetVelocityTicks * 60.0 / TICKS_PER_REV;
 
-            // --- LEFT MOTOR PIDF ---
-            double errorLeft = targetVelocityTicks - currentVelocityLeft;
-            integralSumLeft += (errorLeft * dt);
-            double derivativeLeft = dt > 0 ? (errorLeft - lastErrorLeft) / dt : 0;
-            lastErrorLeft = errorLeft;
+            double powerLeft, powerRight;
+            if (targetVelocityTicks == 0) {
+                powerLeft = 0; powerRight = 0;
+                leftController.reset(); rightController.reset();
+            } else {
+                powerLeft  = leftController .computePowerForTargetRPMWithVoltageCompensation(targetRPMCalc, currentVelocityLeft,  currentVoltage, NOMINAL_VOLTAGE);
+                powerRight = rightController.computePowerForTargetRPMWithVoltageCompensation(targetRPMCalc, currentVelocityRight, currentVoltage, NOMINAL_VOLTAGE);
+            }
 
-            double powerLeft = (kP * errorLeft) + (kI * integralSumLeft) + (kD * derivativeLeft) + (kF * targetVelocityTicks);
-            if (targetVelocityTicks == 0) powerLeft = 0;
-            else powerLeft = Math.max(0.0, Math.min(1.0, powerLeft));
-
-            // --- RIGHT MOTOR PIDF ---
-            double errorRight = targetVelocityTicks - currentVelocityRight;
-            integralSumRight += (errorRight * dt);
-            double derivativeRight = dt > 0 ? (errorRight - lastErrorRight) / dt : 0;
-            lastErrorRight = errorRight;
-
-            double powerRight = (kP * errorRight) + (kI * integralSumRight) + (kD * derivativeRight) + (kF * targetVelocityTicks);
-            if (targetVelocityTicks == 0) powerRight = 0;
-            else powerRight = Math.max(0.0, Math.min(1.0, powerRight));
-
-            // Apply the independent powers
             shooterLeft.setPower(powerLeft);
             shooterRight.setPower(powerRight);
 
             // ================= TELEMETRY =================
+            double targetRPM = targetVelocityTicks * 60.0 / TICKS_PER_REV;
             telemetry.addData("1. Target Distance (m)", "%.2f", targetDistance);
 
             if (Double.isNaN(requiredVelocityMS)) {
                 telemetry.addData("2. Physics Result", "IMPOSSIBLE SHOT!");
             } else {
                 telemetry.addData("2. Req. Velocity (m/s)", "%.2f", requiredVelocityMS);
-                telemetry.addData("3. Req. Hood Angle", "%.1f°", requiredHoodAngle);
+                telemetry.addData("3. Req. Hood Angle", "%.1f deg", requiredHoodAngle);
             }
 
             telemetry.addData("4. Target Ticks/Sec", "%.0f", targetVelocityTicks);
+            telemetry.addData("5. Target RPM", "%.0f", targetRPMCalc);
             telemetry.addData("Motor Power (L/R)", "%.2f / %.2f", powerLeft, powerRight);
+            telemetry.addData("Hood Angle", "%.1f deg", currentHoodAngle);
+            telemetry.addData("Hood Servo Pos", "%.3f", angleToServoPosition(currentHoodAngle));
             telemetry.addLine();
 
             telemetry.addLine("--- PIDF TUNING ---");
             telemetry.addData("Selected", "-> " + currentSelected.name() + " <-");
-            telemetry.addData("kP", "%.4f %s", kP, currentSelected == TuneState.P ? "<--" : "");
-            telemetry.addData("kI", "%.4f %s", kI, currentSelected == TuneState.I ? "<--" : "");
-            telemetry.addData("kD", "%.4f %s", kD, currentSelected == TuneState.D ? "<--" : "");
-            telemetry.addData("kF", "%.4f %s", kF, currentSelected == TuneState.F ? "<--" : "");
+            telemetry.addData("kP", "%.5f %s", kP, currentSelected == TuneState.P ? "<--" : "");
+            telemetry.addData("kI", "%.5f %s", kI, currentSelected == TuneState.I ? "<--" : "");
+            telemetry.addData("kD", "%.5f %s", kD, currentSelected == TuneState.D ? "<--" : "");
+            telemetry.addData("kF", "%.5f %s", kF, currentSelected == TuneState.F ? "<--" : "");
             telemetry.addLine();
 
             telemetry.addLine("--- MOTOR PERFORMANCE ---");
             telemetry.addData("Left Actual RPM", "%.0f", (currentVelocityLeft * 60.0) / TICKS_PER_REV);
             telemetry.addData("Right Actual RPM", "%.0f", (currentVelocityRight * 60.0) / TICKS_PER_REV);
+            telemetry.addData("Battery", "%.1f V", currentVoltage);
 
             telemetry.update();
         }
     }
 
     // =================================================================================
-    // HELPER METHOD: PHYSICS CALCULATION
+    // HOOD SERVO METHODS
     // =================================================================================
-    public static double[] distanceToLauncherValues(double distance) {
-        if (distance <= 0) return new double[]{Double.NaN, Double.NaN};
 
-        double x = distance;
-        double deltaY = TARGET_HEIGHT - LAUNCHER_HEIGHT;
+    /**
+     * Convert a hood angle (degrees) to servo position.
+     * Servo 0.5 = MIN_HOOD_ANGLE (lowest point).
+     * Servo DECREASES to raise the hood (subtract for higher angle).
+     * 1 deg hood = GEAR_RATIO deg servo = GEAR_RATIO/180 servo units.
+     */
+    private double angleToServoPosition(double angle) {
+        double servoPos = SERVO_START_POS - (angle - MIN_HOOD_ANGLE) * SERVO_UNITS_PER_HOOD_DEGREE;
+        return Math.max(0.0, Math.min(1.0, servoPos));
+    }
 
-        double minVelocitySquared = GRAVITY * (deltaY + Math.sqrt(Math.pow(deltaY, 2) + Math.pow(x, 2)));
-        double minVelocity = Math.sqrt(minVelocitySquared);
-
-        double tanThetaMin = minVelocitySquared / (GRAVITY * x);
-        double optimalAngleHoriz = Math.toDegrees(Math.atan(tanThetaMin));
-        double optimalAngleVert = 90.0 - optimalAngleHoriz;
-
-        double finalAngleVert = 0;
-        double finalAngleHoriz = 0;
-        boolean forceOverride = false;
-
-        if (distance <= 1) {
-            finalAngleVert = MIN_HOOD_ANGLE;
-            finalAngleHoriz = 90.0 - MIN_HOOD_ANGLE;
-            forceOverride = true;
-        } else if (distance >= 4) {
-            finalAngleVert = MAX_HOOD_ANGLE;
-            finalAngleHoriz = 90.0 - MAX_HOOD_ANGLE;
-            forceOverride = true;
-        }
-
-        if (!forceOverride) {
-            if (optimalAngleVert >= MIN_HOOD_ANGLE && optimalAngleVert <= MAX_HOOD_ANGLE) {
-                finalAngleVert = optimalAngleVert;
-                finalAngleHoriz = optimalAngleHoriz;
-
-                if (minVelocity > LAUNCHER_MAX_BALL_VELOCITY) {
-                    return new double[]{Double.NaN, Double.NaN}; // Impossible
-                }
-                return new double[]{minVelocity, finalAngleVert};
-            } else if (optimalAngleVert < MIN_HOOD_ANGLE) {
-                finalAngleVert = MIN_HOOD_ANGLE;
-                finalAngleHoriz = 90.0 - MIN_HOOD_ANGLE;
-            } else {
-                finalAngleVert = MAX_HOOD_ANGLE;
-                finalAngleHoriz = 90.0 - MAX_HOOD_ANGLE;
-            }
-        }
-
-        double angleToUseRad = Math.toRadians(finalAngleHoriz);
-        double tanTheta = Math.tan(angleToUseRad);
-        double cosTheta = Math.cos(angleToUseRad);
-
-        double denominator = 2 * (cosTheta * cosTheta) * (x * tanTheta - deltaY);
-        if (denominator <= 0) {
-            return new double[]{Double.NaN, Double.NaN}; // Denominator <= 0 makes it impossible
-        }
-
-        double requiredVelocity = Math.sqrt((GRAVITY * x * x) / denominator);
-        if (requiredVelocity > MAX_DRIVE_VELOCITY) {
-            return new double[]{Double.NaN, Double.NaN};
-        }
-
-        return new double[]{requiredVelocity, finalAngleVert};
+    /** Update both hood servos on the same axle. */
+    private void updateHoodServoPosition(double angle) {
+        double servoPos = angleToServoPosition(angle);
+        hoodServo1.setPosition(servoPos);
+        hoodServo2.setPosition(servoPos);
     }
 
     // =================================================================================
-    // HELPER METHOD: LINEAR INTERPOLATION (m/s -> Ticks/sec)
+    // PHYSICS CALCULATION (full ballistics solver with lip clearance)
+    // =================================================================================
+    public static double[] distanceToLauncherValues(double distance) {
+        distance += DISTANCE_OFFSET;
+        if (distance <= 0) return new double[]{Double.NaN, Double.NaN};
+
+        double g = GRAVITY;
+        double x = distance;
+        double xLip = x - GOAL_LIP;
+        double deltaYLip = (TARGET_HEIGHT + LIP_BUFFER) - LAUNCHER_HEIGHT;
+
+        // Attempt 1: Backboard shot (priority - faster, flatter)
+        double[] result = calculateBestShot(x, TARGET_HEIGHT + BACKBOARD_Y_OFFSET, xLip, deltaYLip, g);
+
+        // Attempt 2: Goal center fallback
+        if (Double.isNaN(result[0])) {
+            result = calculateBestShot(x, TARGET_HEIGHT, xLip, deltaYLip, g);
+        }
+
+        return result;
+    }
+
+    private static double[] calculateBestShot(double x, double targetY, double xLip, double deltaYLip, double g) {
+        double deltaY = targetY - LAUNCHER_HEIGHT;
+        double minPhysAngleH = 90.0 - MAX_HOOD_ANGLE;
+        double maxPhysAngleH = 90.0 - MIN_HOOD_ANGLE;
+
+        double minGeomAngle = Math.toDegrees(Math.atan(deltaY / x)) + 0.1;
+
+        double minLipH = 0.0;
+        if (xLip > 0) {
+            double num = (deltaY * xLip * xLip) - (deltaYLip * x * x);
+            double den = (x * xLip * xLip) - (xLip * x * x);
+            if (Math.abs(den) > 1e-5) {
+                minLipH = Math.toDegrees(Math.atan(num / den));
+            } else {
+                minLipH = 89.9;
+            }
+        }
+
+        double targetAngleH = Math.max(minPhysAngleH, Math.max(minLipH, minGeomAngle));
+
+        if (targetAngleH > maxPhysAngleH) {
+            return new double[]{Double.NaN, Double.NaN};
+        }
+
+        double vReq = calculateVelocity(x, deltaY, targetAngleH, g);
+
+        if (!Double.isNaN(vReq) && vReq <= LAUNCHER_MAX_BALL_VELOCITY) {
+            return new double[]{vReq, 90.0 - targetAngleH};
+        }
+
+        double v = LAUNCHER_MAX_BALL_VELOCITY;
+        double A = (g * x * x) / (2.0 * v * v);
+        double B = -x;
+        double C = deltaY + A;
+        double disc = B * B - 4 * A * C;
+
+        if (disc < 0) return new double[]{Double.NaN, Double.NaN};
+
+        double sqrtD = Math.sqrt(disc);
+        double tan1 = (-B - sqrtD) / (2 * A);
+        double tan2 = (-B + sqrtD) / (2 * A);
+
+        double a1 = Math.toDegrees(Math.atan(tan1));
+        double a2 = Math.toDegrees(Math.atan(tan2));
+
+        if (a1 >= targetAngleH && a1 <= maxPhysAngleH) return new double[]{v, 90.0 - a1};
+        if (a2 >= targetAngleH && a2 <= maxPhysAngleH) return new double[]{v, 90.0 - a2};
+
+        return new double[]{Double.NaN, Double.NaN};
+    }
+
+    private static double calculateVelocity(double x, double deltaY, double angleHoriz, double g) {
+        double angleRad = Math.toRadians(angleHoriz);
+        double tanTheta = Math.tan(angleRad);
+        double cosTheta = Math.cos(angleRad);
+        double denom = 2 * cosTheta * cosTheta * (x * tanTheta - deltaY);
+
+        if (denom <= 1e-9) return Double.NaN;
+
+        return Math.sqrt((g * x * x) / denom);
+    }
+
+    // =================================================================================
+    // LINEAR INTERPOLATION (m/s -> Ticks/sec)
     // =================================================================================
     public static double interpolateToTicks(double velocityMs) {
-        // Values pulled from your LauncherMathTest.java arrays
         double[] inputMs = {-0.01, 0.0, 7.376, 8.9408, 10.2819, 12.07, 13.4112, 14.5288, 15.42288};
         double[] outputTicks = {-0.01, 0.0, 933.33, 1166.67, 1400.0, 1633.33, 1866.667, 2100, 2240.0};
 
-        // If outside lower bounds
         if (velocityMs <= inputMs[0]) return outputTicks[0];
-        // If outside upper bounds
         if (velocityMs >= inputMs[inputMs.length - 1]) return outputTicks[outputTicks.length - 1];
 
-        // Linear interpolation logic
         for (int i = 0; i < inputMs.length - 1; i++) {
             if (velocityMs >= inputMs[i] && velocityMs <= inputMs[i + 1]) {
                 double fraction = (velocityMs - inputMs[i]) / (inputMs[i + 1] - inputMs[i]);
