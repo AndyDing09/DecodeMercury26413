@@ -54,7 +54,7 @@ public class TeleOp2 extends LinearOpMode {
 
             // Turret
             turret.updateTuning(gamepad2.dpad_up, gamepad2.dpad_down, gamepad2.dpad_left, gamepad2.dpad_right, gamepad2.left_bumper);
-            turret.updateTracking(gamepad2.cross, gamepad2.right_stick_x, voltageSensor, telemetry, this);
+            turret.update(gamepad2.cross, gamepad2.right_stick_x, voltageSensor, telemetry, this);
 
             // Telemetry
             turret.addTelemetry(telemetry);

@@ -27,6 +27,7 @@ public class Auto_nomous extends LinearOpMode {
     private DcMotor frontLeftDrive, backLeftDrive, frontRightDrive, backRightDrive;
     private DcMotor middleTransfer;
     private DcMotorEx shooterLeft, shooterRight;
+    private DcMotorEx turretMotor;
     private VoltageSensor voltageSensor;
     private Servo Gate;
     private Servo transferBlocker;
@@ -134,6 +135,14 @@ public class Auto_nomous extends LinearOpMode {
         shooterLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         shooterRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
+        // Lock turret at init position so it doesn't drift during auto
+        turretMotor = hardwareMap.get(DcMotorEx.class, "turretMotor");
+        turretMotor.setDirection(DcMotorSimple.Direction.FORWARD);
+        turretMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        turretMotor.setTargetPosition(0);
+        turretMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        turretMotor.setPower(0.5);
+
         Gate = hardwareMap.servo.get("Gate");
         Gate.setPosition(GATE_CLOSED);
 
@@ -213,6 +222,7 @@ public class Auto_nomous extends LinearOpMode {
         shooterLeft.setPower(0);
         shooterRight.setPower(0);
         middleTransfer.setPower(0);
+        turretMotor.setPower(0);
         Gate.setPosition(GATE_CLOSED);
     }
 

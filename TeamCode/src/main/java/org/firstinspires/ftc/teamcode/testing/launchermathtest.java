@@ -7,7 +7,6 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
-import com.qualcomm.robotcore.util.ElapsedTime;
 
 @TeleOp(name="LauncherMathTest", group="Testing")
 public class launchermathtest extends LinearOpMode {
@@ -90,8 +89,8 @@ public class launchermathtest extends LinearOpMode {
         shooterLeft = hardwareMap.get(DcMotorEx.class, "shooterLeft");
         shooterRight = hardwareMap.get(DcMotorEx.class, "shooterRight");
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
-        hoodServo1 = hardwareMap.servo.get("hoodServo1");
-        hoodServo2 = hardwareMap.servo.get("hoodServo2");
+        hoodServo1 = hardwareMap.servo.get("angleChange1");
+        hoodServo2 = hardwareMap.servo.get("angleChange2");
 
         shooterLeft.setDirection(DcMotorSimple.Direction.FORWARD);
         shooterRight.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -139,8 +138,8 @@ public class launchermathtest extends LinearOpMode {
             if (targetDistance < 0) targetDistance = 0;
 
             if (targetDistance == 0) {
-                integralSumLeft = 0;
-                integralSumRight = 0;
+                if (leftController != null) leftController.reset();
+                if (rightController != null) rightController.reset();
             }
 
             // ================= GAMEPAD 1: HOOD ANGLE CONTROL =================
