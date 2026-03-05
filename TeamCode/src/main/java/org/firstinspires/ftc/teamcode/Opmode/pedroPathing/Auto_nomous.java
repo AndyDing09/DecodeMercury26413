@@ -61,7 +61,7 @@ public class Auto_nomous extends LinearOpMode {
     // =======================
     private static final double SERVO_HOME           = 0.5;
     private static final double SERVO_EXTENDED       = 0.0;
-    private static final double TRANSFER_RESET_DELAY = 0.35;
+    private static final double TRANSFER_RESET_DELAY = 0.45;
 
     // =======================
     // Poses
