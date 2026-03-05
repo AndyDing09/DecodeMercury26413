@@ -14,8 +14,16 @@ public class launchermathtest extends LinearOpMode {
     // ================= MOTORS =================
     private DcMotorEx shooterLeft;
     private DcMotorEx shooterRight;
+    private DcMotor middleTransfer;
     private VoltageSensor voltageSensor;
+    private Servo gate;
     private static final double NOMINAL_VOLTAGE = 12.0;
+
+    // ================= INTAKE / GATE =================
+    private boolean intakeOn = false;
+    private boolean gateOpen = false;
+    private boolean lastG2Circle = false;
+    private boolean lastG2Triangle = false;
 
     // ================= PHYSICS & DISTANCE VARIABLES =================
     private double targetDistance = 2.0; // Start at 2 meters
@@ -25,12 +33,13 @@ public class launchermathtest extends LinearOpMode {
     private static final double TARGET_HEIGHT = 1.22;          // Height of the goal in meters
     private static final double LAUNCHER_HEIGHT = 0.32385;     // Height of your shooter in meters
     private static final double MIN_HOOD_ANGLE = 26.0;
-    private static final double MAX_HOOD_ANGLE = 45.0;
+    private static final double MAX_HOOD_ANGLE = 41;
 
     // ================= SERVOS - HOOD ANGLE CONTROL =================
     private Servo hoodServo1;
     private Servo hoodServo2;
     private double currentHoodAngle = MIN_HOOD_ANGLE;
+    private boolean manualHoodOverride = false;
 
     // ================= GEAR RATIO CONSTANTS =================
     // Small gear on servo axle, large gear on hood pivot
@@ -43,10 +52,10 @@ public class launchermathtest extends LinearOpMode {
     // In servo units: GEAR_RATIO / 180.0 per degree of hood angle
     private static final double SERVO_START_POS = 0.5;
     private static final double SERVO_UNITS_PER_HOOD_DEGREE = GEAR_RATIO / 180.0;
-    // Servo DECREASES from 0.5 to raise the hood (0.5 = lowest, 0.0 = highest)
-    // Max reachable hood angle given servo range [0.5, 0.0] = 90 deg servo / GEAR_RATIO
-    private static final double MAX_REACHABLE_HOOD_ANGLE = MIN_HOOD_ANGLE + SERVO_START_POS * 180.0 / GEAR_RATIO;
-    private static final double LAUNCHER_MAX_BALL_VELOCITY = 15.42;
+    // Servo INCREASES from 0.5 to raise the hood (0.5 = lowest, 1.0 = highest)
+    // Max reachable hood angle given servo range [0.5, 1.0] = 0.5 * 180 / GEAR_RATIO degrees
+    private static final double MAX_REACHABLE_HOOD_ANGLE = MIN_HOOD_ANGLE + (1.0 - SERVO_START_POS) * 180.0 / GEAR_RATIO;
+    private static final double LAUNCHER_MAX_BALL_VELOCITY = 15.0;
     private static final double MAX_DRIVE_VELOCITY = 15.0;
 
     // Goal geometry for lip clearance and backboard targeting
@@ -58,7 +67,6 @@ public class launchermathtest extends LinearOpMode {
     // Ticks per revolution (used for RPM telemetry calculation)
     private static final double TICKS_PER_REV = 28.0;
     // Max motor velocity in ticks/sec (28 ticks/rev * ~4800 RPM / 60)
-    private static final double MAX_MOTOR_TICKS_PER_SEC = 2240.0;
 
     // Gamepad 1 Edge Detection
     private boolean lastG1DpadUp = false, lastG1DpadDown = false;
@@ -101,6 +109,14 @@ public class launchermathtest extends LinearOpMode {
         shooterLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         shooterRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
+        middleTransfer = hardwareMap.get(DcMotor.class, "middleTransfer");
+        middleTransfer.setDirection(DcMotor.Direction.FORWARD);
+        middleTransfer.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        middleTransfer.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+
+        gate = hardwareMap.servo.get("Gate");
+        gate.setPosition(0.5);
+
         // Initialize hood to lowest position (servo 0.5)
         currentHoodAngle = MIN_HOOD_ANGLE;
         updateHoodServoPosition(currentHoodAngle);
@@ -121,19 +137,34 @@ public class launchermathtest extends LinearOpMode {
 
         while (opModeIsActive()) {
 
+            // ================= GAMEPAD 2: INTAKE (circle) + GATE (triangle) =================
+            boolean curG2Circle = gamepad2.circle;
+            boolean curG2Triangle = gamepad2.triangle;
+
+            if (curG2Circle && !lastG2Circle) {
+                intakeOn = !intakeOn;
+                middleTransfer.setPower(intakeOn ? Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage()) : 0);
+            }
+            if (curG2Triangle && !lastG2Triangle) {
+                gateOpen = !gateOpen;
+                gate.setPosition(gateOpen ? 0.27 : 0.5);
+            }
+            lastG2Circle = curG2Circle;
+            lastG2Triangle = curG2Triangle;
+
             // ================= GAMEPAD 1: DISTANCE CONTROL =================
             boolean currentG1DpadUp = gamepad1.dpad_up;
             boolean currentG1DpadDown = gamepad1.dpad_down;
             boolean currentG1RightBumper = gamepad1.right_bumper;
             boolean currentG1LeftBumper = gamepad1.left_bumper;
 
-            if (currentG1DpadUp && !lastG1DpadUp) targetDistance += 0.1;
-            if (currentG1DpadDown && !lastG1DpadDown) targetDistance -= 0.1;
-            if (currentG1RightBumper && !lastG1RightBumper) targetDistance += 0.5;
-            if (currentG1LeftBumper && !lastG1LeftBumper) targetDistance -= 0.5;
+            if (currentG1DpadUp && !lastG1DpadUp) { targetDistance += 0.1; manualHoodOverride = false; }
+            if (currentG1DpadDown && !lastG1DpadDown) { targetDistance -= 0.1; manualHoodOverride = false; }
+            if (currentG1RightBumper && !lastG1RightBumper) { targetDistance += 0.5; manualHoodOverride = false; }
+            if (currentG1LeftBumper && !lastG1LeftBumper) { targetDistance -= 0.5; manualHoodOverride = false; }
 
-            if (gamepad1.a) targetDistance = 0;
-            if (gamepad1.b) targetDistance = 2.0;
+            if (gamepad1.a) { targetDistance = 0; manualHoodOverride = false; }
+            if (gamepad1.b) { targetDistance = 2.0; manualHoodOverride = false; }
 
             if (targetDistance < 0) targetDistance = 0;
 
@@ -146,8 +177,8 @@ public class launchermathtest extends LinearOpMode {
             boolean currentG1Y = gamepad1.y;
             boolean currentG1X = gamepad1.x;
 
-            if (currentG1Y && !lastG1Y) currentHoodAngle += 1.0;
-            if (currentG1X && !lastG1X) currentHoodAngle -= 1.0;
+            if (currentG1Y && !lastG1Y) { currentHoodAngle += 1.0; manualHoodOverride = true; }
+            if (currentG1X && !lastG1X) { currentHoodAngle -= 1.0; manualHoodOverride = true; }
 
             // Clamp to valid range (physical limit is MAX_REACHABLE_HOOD_ANGLE)
             double effectiveMax = Math.min(MAX_HOOD_ANGLE, MAX_REACHABLE_HOOD_ANGLE);
@@ -214,8 +245,8 @@ public class launchermathtest extends LinearOpMode {
             if (!Double.isNaN(requiredVelocityMS) && targetDistance > 0) {
                 targetVelocityTicks = interpolateToTicks(requiredVelocityMS);
 
-                // Apply the calculated hood angle to the servo
-                if (!Double.isNaN(requiredHoodAngle)) {
+                // Only auto-set hood angle if user hasn't manually adjusted
+                if (!manualHoodOverride && !Double.isNaN(requiredHoodAngle)) {
                     currentHoodAngle = requiredHoodAngle;
                     double effectiveMaxAuto = Math.min(MAX_HOOD_ANGLE, MAX_REACHABLE_HOOD_ANGLE);
                     if (currentHoodAngle < MIN_HOOD_ANGLE) currentHoodAngle = MIN_HOOD_ANGLE;
@@ -262,10 +293,13 @@ public class launchermathtest extends LinearOpMode {
             telemetry.addData("4. Target Ticks/Sec", "%.0f", targetVelocityTicks);
             telemetry.addData("5. Target RPM", "%.0f", targetRPMCalc);
             telemetry.addData("Motor Power (L/R)", "%.2f / %.2f", powerLeft, powerRight);
-            telemetry.addData("Hood Angle", "%.1f deg", currentHoodAngle);
+            telemetry.addData("Hood Angle", "%.1f deg %s", currentHoodAngle, manualHoodOverride ? "(MANUAL)" : "(AUTO)");
             telemetry.addData("Hood Servo Pos", "%.3f", angleToServoPosition(currentHoodAngle));
             telemetry.addLine();
 
+            telemetry.addData("Intake", intakeOn ? "ON" : "OFF");
+            telemetry.addData("Gate", gateOpen ? "OPEN" : "CLOSED");
+            telemetry.addLine();
             telemetry.addLine("--- PIDF TUNING ---");
             telemetry.addData("Selected", "-> " + currentSelected.name() + " <-");
             telemetry.addData("kP", "%.5f %s", kP, currentSelected == TuneState.P ? "<--" : "");
@@ -290,11 +324,11 @@ public class launchermathtest extends LinearOpMode {
     /**
      * Convert a hood angle (degrees) to servo position.
      * Servo 0.5 = MIN_HOOD_ANGLE (lowest point).
-     * Servo DECREASES to raise the hood (subtract for higher angle).
+     * Servo INCREASES to raise the hood (add for higher angle).
      * 1 deg hood = GEAR_RATIO deg servo = GEAR_RATIO/180 servo units.
      */
     private double angleToServoPosition(double angle) {
-        double servoPos = SERVO_START_POS - (angle - MIN_HOOD_ANGLE) * SERVO_UNITS_PER_HOOD_DEGREE;
+        double servoPos = SERVO_START_POS + (angle - MIN_HOOD_ANGLE) * SERVO_UNITS_PER_HOOD_DEGREE;
         return Math.max(0.0, Math.min(1.0, servoPos));
     }
 
@@ -394,8 +428,8 @@ public class launchermathtest extends LinearOpMode {
     // LINEAR INTERPOLATION (m/s -> Ticks/sec)
     // =================================================================================
     public static double interpolateToTicks(double velocityMs) {
-        double[] inputMs = {-0.01, 0.0, 7.376, 8.9408, 10.2819, 12.07, 13.4112, 14.5288, 15.42288};
-        double[] outputTicks = {-0.01, 0.0, 933.33, 1166.67, 1400.0, 1633.33, 1866.667, 2100, 2240.0};
+        double[] inputMs = {-0.01, 0.0, 4.29,   4.49,   4.76,   5.22,   5.65,   6.06,   6.44,   6.86,   7.2,    10.0 };
+        double[] outputTicks = {-0.01, 0.0, 1140.0, 1200.0, 1280.0, 1420.0, 1580.0, 1720.0, 1880.0, 2040.0, 2080.0, 2200.0};
 
         if (velocityMs <= inputMs[0]) return outputTicks[0];
         if (velocityMs >= inputMs[inputMs.length - 1]) return outputTicks[outputTicks.length - 1];
