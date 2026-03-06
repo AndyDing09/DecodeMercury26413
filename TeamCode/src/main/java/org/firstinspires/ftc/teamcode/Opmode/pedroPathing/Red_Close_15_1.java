@@ -19,8 +19,8 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 import org.firstinspires.ftc.teamcode.testing.PIDFMotorController;
 
-@Autonomous(name = "Auto_nomous", group = "Auto")
-public class Auto_nomous extends LinearOpMode {
+@Autonomous(name = "RC1", group = "Auto")
+public class Red_Close_15_1 extends LinearOpMode {
 
     // =======================
     // Hardware
@@ -76,7 +76,7 @@ public class Auto_nomous extends LinearOpMode {
     // Intake wait at pick pose
     // =======================
     private static final double PICK_FROM_CLEAR_SECONDS = 1.5;
-    private static final double WAIT_AT_GATE_1 = 0.25;
+    private static final double WAIT_AT_GATE = 0.25;
 
     // =======================
     // Poses
@@ -88,9 +88,12 @@ public class Auto_nomous extends LinearOpMode {
     private final Pose clearPose         = new Pose(129, 68,  Math.toRadians(0));
     private final Pose pickFromClearPose = new Pose(137, 59,  Math.toRadians(45));
     private final Pose pickupPose1       = new Pose(102, 84,  Math.toRadians(0));
-    private final Pose Intake1End  = new Pose(128, 84,  Math.toRadians(0));
-    private final Pose intermediatePose1  = new Pose(108, 60, Math.toRadians(22.5));
-    private final Pose intermediatePose2  = new Pose(102, 66, Math.toRadians(22.5));
+    private final Pose Intake1End        = new Pose(128, 84,  Math.toRadians(0));
+    private final Pose pickupPose3       = new Pose(102, 36,  Math.toRadians(0));
+    private final Pose Intake3End        = new Pose(134, 36,  Math.toRadians(0));
+    private final Pose intermediatePose1 = new Pose(108, 60,  Math.toRadians(22.5));
+    private final Pose intermediatePose2 = new Pose(102, 66,  Math.toRadians(22.5));
+    private final Pose parkPose          = new Pose(118, 68,  Math.toRadians(0));
 
     // =======================
     // PedroPathing
@@ -103,9 +106,13 @@ public class Auto_nomous extends LinearOpMode {
     private PathChain toClear;
     private PathChain toPickFromClear;
     private PathChain toShootFromPickFromClear;
+    private PathChain toPickup3Start;
+    private PathChain toPickup3End;
+    private PathChain toShootFromPickup3;
     private PathChain toPickup1Start;
     private PathChain toPickup1End;
     private PathChain toShootFromPickup1;
+    private PathChain toPark;
 
     // =======================
     // State Machine
@@ -180,7 +187,6 @@ public class Auto_nomous extends LinearOpMode {
                 .setLinearHeadingInterpolation(shootPose.getHeading(), pickupPose2.getHeading())
                 .build();
 
-        // Intake drive: Pedro follows from pickupPose2 to afterIntake1 while intake runs
         toPickup2End = follower.pathBuilder()
                 .addPath(new BezierLine(pickupPose2, Intake2End))
                 .setLinearHeadingInterpolation(pickupPose2.getHeading(), Intake2End.getHeading())
@@ -191,7 +197,7 @@ public class Auto_nomous extends LinearOpMode {
                 .setLinearHeadingInterpolation(Intake2End.getHeading(), shootPose.getHeading())
                 .build();
 
-        // ── Paths for third/fourth ball pickup ────────────────────────────
+        // ── Paths for third ball pickup (clear → pickFromClear) ───────────
         toClear = follower.pathBuilder()
                 .addPath(new BezierCurve(shootPose, intermediatePose2, clearPose))
                 .setLinearHeadingInterpolation(shootPose.getHeading(), clearPose.getHeading())
@@ -207,7 +213,23 @@ public class Auto_nomous extends LinearOpMode {
                 .setLinearHeadingInterpolation(pickFromClearPose.getHeading(), shootPose.getHeading())
                 .build();
 
-        // ── Fifth pickup cycle paths (sweep along y=84) ───────────────────
+        // ── Paths for fourth ball pickup (pickup3 sweep along y=36) ───────
+        toPickup3Start = follower.pathBuilder()
+                .addPath(new BezierLine(shootPose, pickupPose3))
+                .setLinearHeadingInterpolation(shootPose.getHeading(), pickupPose3.getHeading())
+                .build();
+
+        toPickup3End = follower.pathBuilder()
+                .addPath(new BezierLine(pickupPose3, Intake3End))
+                .setLinearHeadingInterpolation(pickupPose3.getHeading(), Intake3End.getHeading())
+                .build();
+
+        toShootFromPickup3 = follower.pathBuilder()
+                .addPath(new BezierCurve(Intake3End, intermediatePose2, shootPose))
+                .setLinearHeadingInterpolation(Intake3End.getHeading(), shootPose.getHeading())
+                .build();
+
+        // ── Paths for fifth ball pickup (pickup1 sweep along y=84) ────────
         toPickup1Start = follower.pathBuilder()
                 .addPath(new BezierLine(shootPose, pickupPose1))
                 .setLinearHeadingInterpolation(shootPose.getHeading(), pickupPose1.getHeading())
@@ -221,6 +243,12 @@ public class Auto_nomous extends LinearOpMode {
         toShootFromPickup1 = follower.pathBuilder()
                 .addPath(new BezierLine(Intake1End, shootPose))
                 .setLinearHeadingInterpolation(Intake1End.getHeading(), shootPose.getHeading())
+                .build();
+
+        // ── Park path (shootPose → parkPose) ──────────────────────────────
+        toPark = follower.pathBuilder()
+                .addPath(new BezierLine(shootPose, parkPose))
+                .setLinearHeadingInterpolation(shootPose.getHeading(), parkPose.getHeading())
                 .build();
 
         telemetry.addLine("✅ Initialized");
@@ -263,7 +291,6 @@ public class Auto_nomous extends LinearOpMode {
 
     // ── Shooter PIDF update — runs entire auto, never turns off ────────────
     private void updateShooter() {
-        // Switch gains based on RPM (same as Shooter.java in TeleOp)
         if (activeTargetRPM >= RPM_GAIN_THRESHOLD) {
             leftController.setTunings(kP_high, kI_high, kD_high, kF_high);
             rightController.setTunings(kP_high, kI_high, kD_high, kF_high);
@@ -280,7 +307,7 @@ public class Auto_nomous extends LinearOpMode {
         shooterLeft.setPower(powerL);
         shooterRight.setPower(powerR);
 
-        // Detect ball launch: velocity drop > 200 ticks/sec means a ball just fired
+        // Detect ball launch: velocity drop > 300 ticks/sec means a ball just fired
         double avgVelocity = (shooterLeft.getVelocity() + shooterRight.getVelocity()) / 2.0;
         double velocityDrop = lastAvgVelocity - avgVelocity;
         if (velocityDrop >= LAUNCH_DROP_THRESHOLD && lastAvgVelocity > 0) {
@@ -292,10 +319,11 @@ public class Auto_nomous extends LinearOpMode {
     }
 
     // ── State Machine ──────────────────────────────────────────────────────
+    // PATH: shoot → pickup2 → shoot → clear→pickFromClear → shoot → pickup3 → shoot → pickup1 → shoot → park
     private void updateStateMachine() {
         switch (state) {
 
-            // ── FIRST SHOOT CYCLE (TARGET_RPM_INITIAL) ────────────────────
+            // ── FIRST SHOOT CYCLE ─────────────────────────────────────────
 
             case 0:
                 activeTargetRPM = TARGET_RPM_INITIAL;
@@ -336,7 +364,7 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // ── RAPID INTAKE ──────────────────────────────────────────────
+            // ── PICKUP2 INTAKE ────────────────────────────────────────────
 
             case 4:
                 if (!follower.isBusy()) {
@@ -388,7 +416,7 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // ── THIRD PICKUP CYCLE ────────────────────────────────────────
+            // ── THIRD PICKUP CYCLE (clear → pickFromClear) ───────────────
 
             // STATE 10: Wait to arrive at clearPose
             case 10:
@@ -399,7 +427,7 @@ public class Auto_nomous extends LinearOpMode {
 
             // STATE 11: Wait at gate, then start intake and drive to pickFromClearPose
             case 11:
-                if (actionTimer.getElapsedTimeSeconds() >= WAIT_AT_GATE_1) {
+                if (actionTimer.getElapsedTimeSeconds() >= WAIT_AT_GATE) {
                     middleTransfer.setPower(1.0);
                     follower.followPath(toPickFromClear, true);
                     setState(12);
@@ -413,7 +441,7 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // STATE 13: Wait at pickFromClearPose, then stop intake and drive to shoot pose
+            // STATE 13: Wait at pickFromClearPose, then drive to shoot pose
             case 13:
                 if (actionTimer.getElapsedTimeSeconds() >= PICK_FROM_CLEAR_SECONDS) {
                     activeTargetRPM = TARGET_RPM_FUTURE;
@@ -439,126 +467,116 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // STATE 16: Shoot, then close gate, reset hood, drive to fourth pickup
+            // STATE 16: Shoot, then close gate, reset hood, drive to pickup3
             case 16:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_2) {
                     Gate.setPosition(GATE_CLOSED);
                     resetHood();
-                    follower.followPath(toClear, true);
+                    follower.followPath(toPickup3Start, true);
                     middleTransfer.setPower(0);
                     setState(17);
                 }
                 break;
 
-            // ── FOURTH PICKUP CYCLE ───────────────────────────────────────
+            // ── FOURTH PICKUP CYCLE (pickup3 sweep along y=36) ───────────
 
-            // STATE 17: Wait to arrive at clearPose
+            // STATE 17: Wait to arrive at pickupPose3, then start intake and sweep
             case 17:
                 if (!follower.isBusy()) {
+                    middleTransfer.setPower(1.0);
+                    follower.followPath(toPickup3End, true);
                     setState(18);
                 }
                 break;
 
-            // STATE 18: Wait at gate, then start intake and drive to pickFromClearPose
+            // STATE 18: Wait to arrive at Intake3End, then drive to shoot (intake stays on)
             case 18:
-                if (actionTimer.getElapsedTimeSeconds() >= WAIT_AT_GATE_1) {
-                    middleTransfer.setPower(1.0);
-                    follower.followPath(toPickFromClear, true);
+                if (!follower.isBusy()) {
+                    follower.followPath(toShootFromPickup3, true);
                     setState(19);
                 }
                 break;
 
-            // STATE 19: Wait to arrive at pickFromClearPose (intake running)
+            // STATE 19: Wait to arrive at shoot pose, then stop intake
             case 19:
                 if (!follower.isBusy()) {
+                    middleTransfer.setPower(0);
                     setState(20);
                 }
                 break;
 
-            // STATE 20: Wait at pickFromClearPose, then stop intake and drive to shoot pose
+            // STATE 20: Spinup hold, then open gate and start transfer
             case 20:
-                if (actionTimer.getElapsedTimeSeconds() >= PICK_FROM_CLEAR_SECONDS) {
-                    activeTargetRPM = TARGET_RPM_FUTURE;
-                    follower.followPath(toShootFromPickFromClear, true);
+                if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME_2) {
+                    Gate.setPosition(GATE_OPEN);
+                    middleTransfer.setPower(1.0);
                     setState(21);
                 }
                 break;
 
-            // STATE 21: Wait to arrive at shoot pose
+            // STATE 21: Shoot, then close gate, reset hood, drive to pickup1
             case 21:
-                if (!follower.isBusy()) {
-                    middleTransfer.setPower(0);
-                    setState(22);
-                }
-                break;
-
-            // STATE 22: Spinup hold, then open gate and start transfer
-            case 22:
-                if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME_2) {
-                    Gate.setPosition(GATE_OPEN);
-                    middleTransfer.setPower(1.0);
-                    setState(23);
-                }
-                break;
-
-            // STATE 23: Shoot, then close gate, reset hood, drive to pre-sweep pose
-            case 23:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_2) {
                     Gate.setPosition(GATE_CLOSED);
                     resetHood();
                     follower.followPath(toPickup1Start, true);
                     middleTransfer.setPower(0);
+                    setState(22);
+                }
+                break;
+
+            // ── FIFTH PICKUP CYCLE (pickup1 sweep along y=84) ────────────
+
+            // STATE 22: Wait to arrive at pickupPose1, then start intake and sweep
+            case 22:
+                if (!follower.isBusy()) {
+                    middleTransfer.setPower(1.0);
+                    follower.followPath(toPickup1End, true);
+                    setState(23);
+                }
+                break;
+
+            // STATE 23: Wait to arrive at Intake1End, then drive to shoot (intake stays on)
+            case 23:
+                if (!follower.isBusy()) {
+                    follower.followPath(toShootFromPickup1, true);
                     setState(24);
                 }
                 break;
 
-            // ── FIFTH PICKUP CYCLE (sweep along y=84) ─────────────────────
-
-            // STATE 24: Wait to arrive at preSweepPose
+            // STATE 24: Wait to arrive at shoot pose, then stop intake
             case 24:
                 if (!follower.isBusy()) {
+                    middleTransfer.setPower(0);
                     setState(25);
                 }
                 break;
 
-            // STATE 25: Turn on intake, drive sweep to (122, 84)
+            // STATE 25: Spinup hold, then open gate and start transfer
             case 25:
-                middleTransfer.setPower(1.0);
-                follower.followPath(toPickup1End, true);
-                setState(26);
-                break;
-
-            // STATE 26: Wait to arrive at sweepEndPose, then drive to shoot pose (intake stays on)
-            case 26:
-                if (!follower.isBusy()) {
-                    follower.followPath(toShootFromPickup1, true);
-                    setState(27);
-                }
-                break;
-
-            // STATE 27: Wait to arrive at shoot pose, then stop intake
-            case 27:
-                if (!follower.isBusy()) {
-                    middleTransfer.setPower(0);
-                    setState(28);
-                }
-                break;
-
-            // STATE 28: Spinup hold, then open gate and start transfer
-            case 28:
                 if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME_2) {
                     Gate.setPosition(GATE_OPEN);
                     middleTransfer.setPower(1.0);
-                    setState(29);
+                    setState(26);
                 }
                 break;
 
-            // STATE 29: Shoot, then close gate, reset hood (shooter keeps spinning)
-            case 29:
+            // STATE 26: Shoot, then close gate, reset hood, drive to park
+            case 26:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_2) {
                     Gate.setPosition(GATE_CLOSED);
                     middleTransfer.setPower(0);
                     resetHood();
+                    follower.followPath(toPark, true);
+                    setState(27);
+                }
+                break;
+
+            // ── PARK ─────────────────────────────────────────────────────
+
+            // STATE 27: Wait to arrive at parkPose, then stop
+            case 27:
+                if (!follower.isBusy()) {
                     setState(-1);
                 }
                 break;
