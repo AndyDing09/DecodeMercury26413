@@ -40,7 +40,7 @@ public class Constants {
     // THIS MIGHT BE THE ISSUE: NO TRANSLATIONAL OR LATERAL HEADING COEFFICIENTS HERE
     // ================================================================
     public static FollowerConstants followerConstants = new FollowerConstants()
-            .mass(11.3)
+            .mass(12.4)
             .forwardZeroPowerAcceleration(-30.703)
             .lateralZeroPowerAcceleration(-64.97);
 
