@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.Turret;
+package org.firstinspires.ftc.teamcode.testing;
 
 import android.annotation.SuppressLint;
 
@@ -11,18 +11,18 @@ import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.limelightvision.LLResult;
 
 @TeleOp(name = "Turret Tracking + Search")
-public class turretTracking extends OpMode {
+public class Turret_Odometry_and_Limelight_Test extends OpMode {
 
     private DcMotor     turretMotor;
     private Limelight3A limelight;
     private ElapsedTime loopTimer = new ElapsedTime();
 
-    // ---------- PID Tuning  ----------
+    // ---------- PID Tuning (now mutable so live tuner can change them) ----------
     private double kP             = 0.022;
     private double kD             = 0.0015;
-    private double kF             = 0.08;
-    private double DEADZONE       = 1.0; // degrees
-    private double SCAN_PWR       = 0.15;
+    private double kF             = 0.00;
+    private double DEADZONE       = 1.0;   // degrees
+    private double SCAN_PWR       = 0.15;  // renamed from SCAN_POWER (can't reassign a final)
 
     private static final double MAX_POWER = 0.6;
 
