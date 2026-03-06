@@ -6,134 +6,248 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.limelightvision.LLResult;
 
 @TeleOp(name = "Turret Tracking + Search")
 public class turretTracking extends OpMode {
 
-    private DcMotor turretMotor;
+    private DcMotor     turretMotor;
     private Limelight3A limelight;
+    private ElapsedTime loopTimer = new ElapsedTime();
 
-    // ---------- PID Tuning ----------
-    private static final double kP = 0.022;
-    private static final double kD = 0.0015;
-    private static final double kF = 0.08;
+    // ---------- PID Tuning (now mutable so live tuner can change them) ----------
+    private double kP             = 0.022;
+    private double kD             = 0.0015;
+    private double kF             = 0.08;
+    private double DEADZONE       = 1.0;   // degrees
+    private double SCAN_PWR       = 0.15;  // renamed from SCAN_POWER (can't reassign a final)
 
     private static final double MAX_POWER = 0.6;
-    private static final double SCAN_POWER = 0.15;
-    private static final double DEADZONE_DEGREES = 1.0;
 
     // ---------- Hardware Constants ----------
-    private static final int LEFT_LIMIT = -430;
-    private static final int RIGHT_LIMIT = 430;
-    private static final int LIMIT_BUFFER = 50; // Buffer before reversing scan
+    private static final int LEFT_LIMIT  = -430;
+    private static final int RIGHT_LIMIT =  430;
+
+    // ---------- Target loss debounce ----------
+    private static final int LOSS_DEBOUNCE_FRAMES = 8;
+    private int framesWithoutTarget = 0;
 
     // ---------- State Variables ----------
-    private double lastError = 0;
+    private double  lastTx        = 0;
     private boolean scanningRight = true;
+    private boolean wasTracking   = false;
+
+    // =====================================================================
+    //  LIVE TUNER STATE
+    //
+    //  HOW TO USE:
+    //    GP1 START         — toggle tuner ON / OFF
+    //    GP1 dpad UP/DOWN  — select parameter (shown with >>> on telemetry)
+    //    GP1 dpad RIGHT    — increase selected parameter
+    //    GP1 dpad LEFT     — decrease selected parameter
+    //    GP1 LEFT BUMPER   — hold for coarse steps (10x faster)
+    //
+    //  Parameters you can tune:
+    //    kP       — proportional gain (main tracking force)
+    //    kD       — derivative gain   (damps overshoot, ~10% of kP)
+    //    kF       — feedforward       (minimum power to overcome friction)
+    //    DEADZONE — degrees of error to ignore (hides Limelight jitter)
+    //    SCAN     — search sweep power
+    // =====================================================================
+    private boolean tunerActive  = false;
+    private int     tunerParam   = 0;           // which param is selected
+    private static final int NUM_PARAMS = 5;
+
+    // Fine step = 0.001, coarse (hold LB) = 0.010
+    private static final double STEP_FINE   = 0.001;
+    private static final double STEP_COARSE = 0.010;
+
+    // Edge-detect booleans — prevents a single button hold registering as many presses
+    private boolean lastStart, lastDpadUp, lastDpadDown, lastDpadLeft, lastDpadRight;
 
     @Override
     public void init() {
-        // Motor Setup
         turretMotor = hardwareMap.get(DcMotor.class, "turretMotor");
         turretMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         turretMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-
         turretMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turretMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
-        // Limelight Setup
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.pipelineSwitch(0); // FIXED: Correct method name
+        limelight.pipelineSwitch(0);
         limelight.start();
 
-        telemetry.addLine("Turret Initialized. Ensure robot is centered before Start.");
+        telemetry.addLine("Turret Initialized.");
+        telemetry.addLine("GP1 START = toggle live tuner");
         telemetry.update();
     }
 
     @SuppressLint("DefaultLocale")
     @Override
     public void loop() {
-        LLResult result = limelight.getLatestResult();
-        int currentPos = turretMotor.getCurrentPosition();
-        double outputPower = 0;
-        String mode = "IDLE";
+        double  dt         = Math.max(0.001, loopTimer.seconds());
+        loopTimer.reset();
 
         // -------------------------------------------------------
-        // 1. MANUAL OVERRIDE (High Priority)
+        // LIVE TUNER INPUT (runs every loop regardless of mode)
         // -------------------------------------------------------
+        updateTuner();
+
+        // -------------------------------------------------------
+        // TURRET LOGIC
+        // -------------------------------------------------------
+        LLResult result      = limelight.getLatestResult();
+        boolean  hasTarget   = result != null && result.isValid();
+        int      currentPos  = turretMotor.getCurrentPosition();
+        double   outputPower = 0;
+        String   mode        = "IDLE";
+
+        // 1. MANUAL OVERRIDE
         if (Math.abs(gamepad1.right_stick_x) > 0.1) {
-            mode = "MANUAL";
-            outputPower = gamepad1.right_stick_x * 0.5;
-            lastError = 0;
+            mode            = "MANUAL";
+            outputPower     = gamepad1.right_stick_x * 0.5;
+            lastTx          = 0;
+            wasTracking     = false;
+            framesWithoutTarget = 0;
         }
 
-        // -------------------------------------------------------
-        // 2. AUTOMATIC TRACKING (Medium Priority)
-        // -------------------------------------------------------
-        else if (result != null && result.isValid()) {
-            mode = "TRACKING";
-            double tx = result.getTx();
+        // 2. TRACKING
+        else if (hasTarget) {
+            double tx         = result.getTx();
+            double derivative = wasTracking ? (tx - lastTx) / dt : 0;
 
-            if (Math.abs(tx) > DEADZONE_DEGREES) {
-                // FIXED: Derivative calculation (current - previous)
-                double derivative = (tx - lastError);
+            framesWithoutTarget = 0;
+            wasTracking         = true;
+            lastTx              = tx;
+
+            if (Math.abs(tx) > DEADZONE) {
+                mode        = Math.abs(tx) > 5.0 ? "SLEWING" : "TRACKING";
                 outputPower = (kP * tx) + (kD * derivative);
 
-                // Add Feedforward to overcome static friction
-                if (Math.abs(outputPower) < kF && Math.abs(outputPower) > 0.001) {
+                if (Math.abs(outputPower) > 0.001 && Math.abs(outputPower) < kF) {
                     outputPower = Math.signum(outputPower) * kF;
                 }
             } else {
+                mode        = "LOCKED";
                 outputPower = 0;
             }
-
-            lastError = tx;
         }
 
-        // -------------------------------------------------------
-        // 3. SEARCH MODE (Low Priority)
-        // -------------------------------------------------------
+        // 3. DEBOUNCE HOLD
+        else if (framesWithoutTarget < LOSS_DEBOUNCE_FRAMES) {
+            framesWithoutTarget++;
+            mode        = "HOLDING (" + framesWithoutTarget + "/" + LOSS_DEBOUNCE_FRAMES + ")";
+            outputPower = 0;
+        }
+
+        // 4. SEARCH
         else {
-            mode = "SEARCHING";
-            lastError = 0;
+            mode        = "SEARCHING";
+            wasTracking = false;
 
-            // IMPROVED: Only reverse at actual limits, not buffer zone
-            if (currentPos >= RIGHT_LIMIT) {
-                scanningRight = false;
-            } else if (currentPos <= LEFT_LIMIT) {
-                scanningRight = true;
+            if (framesWithoutTarget == LOSS_DEBOUNCE_FRAMES) {
+                scanningRight = lastTx > 0;
             }
+            framesWithoutTarget++;
 
-            outputPower = scanningRight ? SCAN_POWER : -SCAN_POWER;
+            if (currentPos >= RIGHT_LIMIT) scanningRight = false;
+            else if (currentPos <= LEFT_LIMIT) scanningRight = true;
+
+            outputPower  = scanningRight ? SCAN_PWR : -SCAN_PWR;
+            mode        += scanningRight ? " ->" : " <-";
         }
 
-        // -------------------------------------------------------
-        // 4. SAFETY: SOFT LIMITS & CLAMPING
-        // -------------------------------------------------------
-
-        // Clamp maximum power
+        // 5. SAFETY
         outputPower = Math.max(-MAX_POWER, Math.min(MAX_POWER, outputPower));
-
-        // Hard stop at limits (this protects hardware)
-        if (currentPos <= LEFT_LIMIT && outputPower < 0) {
-            outputPower = 0;
-        } else if (currentPos >= RIGHT_LIMIT && outputPower > 0) {
-            outputPower = 0;
-        }
+        if (currentPos <= LEFT_LIMIT  && outputPower < 0) outputPower = 0;
+        if (currentPos >= RIGHT_LIMIT && outputPower > 0) outputPower = 0;
 
         turretMotor.setPower(outputPower);
 
         // -------------------------------------------------------
         // TELEMETRY
         // -------------------------------------------------------
-        telemetry.addData("Mode", mode);
-        telemetry.addData("Target Found", (result != null && result.isValid()));
-        telemetry.addData("TX Error (°)", result != null && result.isValid() ? String.format("%.2f", result.getTx()) : "N/A");
-        telemetry.addData("Position", "%d / [%d to %d]", currentPos, LEFT_LIMIT, RIGHT_LIMIT);
-        telemetry.addData("Power", "%.2f", outputPower);
-        telemetry.addData("Scan Direction", scanningRight ? "→ RIGHT" : "← LEFT");
+        updateTelemetry(mode, hasTarget, result, currentPos, outputPower, dt);
+    }
+
+    // =====================================================================
+    //  LIVE TUNER — call every loop()
+    // =====================================================================
+    private void updateTuner() {
+        // Toggle tuner with START (edge detect)
+        boolean start = gamepad1.start;
+        if (start && !lastStart) tunerActive = !tunerActive;
+        lastStart = start;
+
+        if (!tunerActive) return; // nothing else to do if tuner is off
+
+        boolean dU = gamepad1.dpad_up;
+        boolean dD = gamepad1.dpad_down;
+        boolean dL = gamepad1.dpad_left;
+        boolean dR = gamepad1.dpad_right;
+        boolean coarse = gamepad1.left_bumper; // hold for 10x step
+
+        // Select parameter (edge detect on up/down)
+        if (dU && !lastDpadUp)   tunerParam = (tunerParam + 1) % NUM_PARAMS;
+        if (dD && !lastDpadDown) tunerParam = (tunerParam + NUM_PARAMS - 1) % NUM_PARAMS;
+
+        // Adjust value (edge detect on left/right)
+        double step = coarse ? STEP_COARSE : STEP_FINE;
+        if (dR && !lastDpadRight) adjustParam(+step);
+        if (dL && !lastDpadLeft)  adjustParam(-step);
+
+        // Save edge state
+        lastDpadUp    = dU;
+        lastDpadDown  = dD;
+        lastDpadLeft  = dL;
+        lastDpadRight = dR;
+    }
+
+    private void adjustParam(double delta) {
+        switch (tunerParam) {
+            case 0: kP       = Math.max(0.000, kP       + delta);       break;
+            case 1: kD       = Math.max(0.000, kD       + delta);       break;
+            case 2: kF       = Math.max(0.000, kF       + delta);       break;
+            case 3: DEADZONE = Math.max(0.100, DEADZONE + delta * 5);   break; // 5x scale feels natural for degrees
+            case 4: SCAN_PWR = Math.max(0.050, Math.min(MAX_POWER, SCAN_PWR + delta * 2)); break;
+        }
+    }
+
+    // =====================================================================
+    //  TELEMETRY
+    // =====================================================================
+    @SuppressLint("DefaultLocale")
+    private void updateTelemetry(String mode, boolean hasTarget, LLResult result,
+                                 int currentPos, double outputPower, double dt) {
+        // --- Turret status ---
+        telemetry.addLine("===== TURRET =====");
+        telemetry.addData("Mode",     mode);
+        telemetry.addData("Target",   hasTarget ? "YES" : "no");
+        telemetry.addData("TX (deg)", hasTarget
+                ? String.format("%.2f", result.getTx()) : "N/A");
+        telemetry.addData("Encoder",  String.format("%d  [limit: %d to %d]",
+                currentPos, LEFT_LIMIT, RIGHT_LIMIT));
+        telemetry.addData("Power",    String.format("%.3f", outputPower));
+        telemetry.addData("Scan Dir", scanningRight ? "RIGHT ->" : "<- LEFT");
+        telemetry.addData("dt (ms)",  String.format("%.1f", dt * 1000));
+
+        // --- Live tuner panel ---
+        telemetry.addLine("===== LIVE TUNER =====");
+        telemetry.addData("GP1 START", "toggle tuner ON/OFF");
+        telemetry.addData("Tuner", tunerActive
+                ? "ON  — dpad UP/DN:select  L/R:adjust  LB:coarse"
+                : "OFF");
+
+        // Parameter list — selected one shows >>>
+        String[] names  = { "kP",   "kD",     "kF",  "Deadzone(deg)", "ScanPower" };
+        double[] vals   = {  kP,     kD,        kF,    DEADZONE,        SCAN_PWR   };
+        for (int i = 0; i < NUM_PARAMS; i++) {
+            String marker = (tunerActive && i == tunerParam) ? ">>>" : "   ";
+            telemetry.addData(marker + " " + names[i], String.format("%.4f", vals[i]));
+        }
+
         telemetry.update();
     }
 
