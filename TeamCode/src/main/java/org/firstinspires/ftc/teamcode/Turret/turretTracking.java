@@ -25,8 +25,8 @@ public class turretTracking extends OpMode {
     private static final double DEADZONE_DEGREES = 1.0;
 
     // ---------- Hardware Constants ----------
-    private static final int LEFT_LIMIT = -450;
-    private static final int RIGHT_LIMIT = 450;
+    private static final int LEFT_LIMIT = -430;
+    private static final int RIGHT_LIMIT = 430;
     private static final int LIMIT_BUFFER = 50; // Buffer before reversing scan
 
     // ---------- State Variables ----------
