@@ -74,18 +74,21 @@ public class Auto_nomous extends LinearOpMode {
     // =======================
     // Intake wait at pick pose
     // =======================
-    private static final double PICK_WAIT_SECONDS = 2.0;
-    private static final double WAIT_AT_GATE = 0.4;
+    private static final double PICK_WAIT_SECONDS = 1.5;
+    private static final double WAIT_AT_GATE_1 = 0.3;
+    private static final double WAIT_AT_GATE_2 = 0.2;
 
     // =======================
     // Poses
     // =======================
-    private final Pose startPose        = new Pose(124, 124, Math.toRadians(45));
-    private final Pose shootPose        = new Pose(96,  96,  Math.toRadians(45));
-    private final Pose pickupPose2      = new Pose(100, 59.5,  Math.toRadians(0));
-    private final Pose afterIntake1     = new Pose(132, 61.5,  Math.toRadians(0));
-    private final Pose clearPose        = new Pose(129, 66,   Math.toRadians(0));
-    private final Pose pickFromClearPose = new Pose(134, 56,  Math.toRadians(60));
+    private final Pose startPose         = new Pose(124, 124, Math.toRadians(45));
+    private final Pose shootPose         = new Pose(96,  96,  Math.toRadians(45));
+    private final Pose pickupPose2       = new Pose(102, 60,  Math.toRadians(0));
+    private final Pose afterIntake1      = new Pose(134, 60,  Math.toRadians(0));
+    private final Pose clearPose         = new Pose(129, 68,  Math.toRadians(0));
+    private final Pose pickFromClearPose = new Pose(136, 56,  Math.toRadians(55));
+    private final Pose preSweepPose      = new Pose(102, 84,  Math.toRadians(0));
+    private final Pose sweepEndPose      = new Pose(122, 84,  Math.toRadians(0));
 
     // =======================
     // PedroPathing
@@ -98,6 +101,9 @@ public class Auto_nomous extends LinearOpMode {
     private PathChain toClear;
     private PathChain toPickFromClear;
     private PathChain toShoot3;
+    private PathChain toPreSweep;
+    private PathChain toSweepEnd;
+    private PathChain sweepToShoot;
 
     // =======================
     // State Machine
@@ -105,10 +111,10 @@ public class Auto_nomous extends LinearOpMode {
     private final Timer actionTimer = new Timer();
     private int state = 0;
 
-    private static final double SPINUP_TIME_1 = 0.375;
-    private static final double SPINUP_TIME_2 = 0.575;
-    private static final double SHOOT_TIME_1  = 0.5;
-    private static final double SHOOT_TIME_2  = 0.7;
+    private static final double SPINUP_TIME_1 = 0.275;
+    private static final double SPINUP_TIME_2 = 0.475;
+    private static final double SHOOT_TIME_1  = 0.45;
+    private static final double SHOOT_TIME_2  = 0.65;
 
     @Override
     public void runOpMode() {
@@ -183,7 +189,7 @@ public class Auto_nomous extends LinearOpMode {
                 .setLinearHeadingInterpolation(afterIntake1.getHeading(), shootPose.getHeading())
                 .build();
 
-        // ── New paths for third ball pickup ───────────────────────────────
+        // ── Paths for third/fourth ball pickup ────────────────────────────
         toClear = follower.pathBuilder()
                 .addPath(new BezierLine(shootPose, clearPose))
                 .setLinearHeadingInterpolation(shootPose.getHeading(), clearPose.getHeading())
@@ -195,8 +201,26 @@ public class Auto_nomous extends LinearOpMode {
                 .build();
 
         toShoot3 = follower.pathBuilder()
-                .addPath(new BezierLine(pickFromClearPose, shootPose))
-                .setLinearHeadingInterpolation(pickFromClearPose.getHeading(), shootPose.getHeading())
+                .addPath(new BezierLine(pickFromClearPose, new Pose(100, 60, Math.toRadians(45))))
+                .setLinearHeadingInterpolation(pickFromClearPose.getHeading(), Math.toRadians(45))
+                .addPath(new BezierLine(new Pose(100, 60, Math.toRadians(45)), shootPose))
+                .setLinearHeadingInterpolation(Math.toRadians(45), shootPose.getHeading())
+                .build();
+
+        // ── Fifth pickup cycle paths (sweep along y=84) ───────────────────
+        toPreSweep = follower.pathBuilder()
+                .addPath(new BezierLine(shootPose, preSweepPose))
+                .setLinearHeadingInterpolation(shootPose.getHeading(), preSweepPose.getHeading())
+                .build();
+
+        toSweepEnd = follower.pathBuilder()
+                .addPath(new BezierLine(preSweepPose, sweepEndPose))
+                .setLinearHeadingInterpolation(preSweepPose.getHeading(), sweepEndPose.getHeading())
+                .build();
+
+        sweepToShoot = follower.pathBuilder()
+                .addPath(new BezierLine(sweepEndPose, shootPose))
+                .setLinearHeadingInterpolation(sweepEndPose.getHeading(), shootPose.getHeading())
                 .build();
 
         telemetry.addLine("✅ Initialized");
@@ -371,9 +395,9 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // STATE 11: Wait 0.25s at gate before moving to pickFromClearPose
+            // STATE 11: Wait at gate, then start intake and drive to pickFromClearPose
             case 11:
-                if (actionTimer.getElapsedTimeSeconds() >= WAIT_AT_GATE) {
+                if (actionTimer.getElapsedTimeSeconds() >= WAIT_AT_GATE_1) {
                     middleTransfer.setPower(1.0);
                     follower.followPath(toPickFromClear, true);
                     setState(12);
@@ -424,7 +448,7 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // ── FOURTH PICKUP CYCLE ────────────────────────────────────────
+            // ── FOURTH PICKUP CYCLE ───────────────────────────────────────
 
             // STATE 17: Wait to arrive at clearPose
             case 17:
@@ -433,9 +457,9 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // STATE 18: Wait 0.25s at gate before moving to pickFromClearPose
+            // STATE 18: Wait at gate, then start intake and drive to pickFromClearPose
             case 18:
-                if (actionTimer.getElapsedTimeSeconds() >= WAIT_AT_GATE) {
+                if (actionTimer.getElapsedTimeSeconds() >= WAIT_AT_GATE_2) {
                     middleTransfer.setPower(1.0);
                     follower.followPath(toPickFromClear, true);
                     setState(19);
@@ -475,8 +499,60 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // STATE 23: Shoot, then close gate, reset hood (shooter keeps spinning)
+            // STATE 23: Shoot, then close gate, reset hood, drive to pre-sweep pose
             case 23:
+                if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_2) {
+                    Gate.setPosition(GATE_CLOSED);
+                    middleTransfer.setPower(0);
+                    resetHood();
+                    follower.followPath(toPreSweep, true);
+                    setState(24);
+                }
+                break;
+
+            // ── FIFTH PICKUP CYCLE (sweep along y=84) ─────────────────────
+
+            // STATE 24: Wait to arrive at preSweepPose
+            case 24:
+                if (!follower.isBusy()) {
+                    setState(25);
+                }
+                break;
+
+            // STATE 25: Turn on intake, drive sweep to (122, 84)
+            case 25:
+                middleTransfer.setPower(1.0);
+                follower.followPath(toSweepEnd, true);
+                setState(26);
+                break;
+
+            // STATE 26: Wait to arrive at sweepEndPose, then drive to shoot pose (intake stays on)
+            case 26:
+                if (!follower.isBusy()) {
+                    follower.followPath(sweepToShoot, true);
+                    setState(27);
+                }
+                break;
+
+            // STATE 27: Wait to arrive at shoot pose, then stop intake
+            case 27:
+                if (!follower.isBusy()) {
+                    middleTransfer.setPower(0);
+                    setState(28);
+                }
+                break;
+
+            // STATE 28: Spinup hold, then open gate and start transfer
+            case 28:
+                if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME_2) {
+                    Gate.setPosition(GATE_OPEN);
+                    middleTransfer.setPower(1.0);
+                    setState(29);
+                }
+                break;
+
+            // STATE 29: Shoot, then close gate, reset hood (shooter keeps spinning)
+            case 29:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_2) {
                     Gate.setPosition(GATE_CLOSED);
                     middleTransfer.setPower(0);
