@@ -70,7 +70,7 @@ public class Auto_nomous extends LinearOpMode {
     // =======================
     private static final double SERVO_HOME           = 0.5;
     private static final double SERVO_EXTENDED       = 0.0;
-    private static final double TRANSFER_RESET_DELAY = 0.45;
+    private static final double TRANSFER_RESET_DELAY = 0.35;
 
     // =======================
     // Intake wait at pick pose
@@ -97,15 +97,15 @@ public class Auto_nomous extends LinearOpMode {
     // =======================
     private Follower follower;
     private PathChain toShootFromStart;
-    private PathChain toPickup2;
-    private PathChain toAfterIntake1;
-    private PathChain toShoot2;
+    private PathChain toPickup2Start;
+    private PathChain toPickup2End;
+    private PathChain toShootFromPickup2;
     private PathChain toClear;
     private PathChain toPickFromClear;
-    private PathChain toShoot3;
-    private PathChain toPreSweep;
-    private PathChain toSweepEnd;
-    private PathChain sweepToShoot;
+    private PathChain toShootFromPickFromClear;
+    private PathChain toPickup1Start;
+    private PathChain toPickup1End;
+    private PathChain toShootFromPickup1;
 
     // =======================
     // State Machine
@@ -175,18 +175,18 @@ public class Auto_nomous extends LinearOpMode {
                 .setLinearHeadingInterpolation(startPose.getHeading(), shootPose.getHeading())
                 .build();
 
-        toPickup2 = follower.pathBuilder()
+        toPickup2Start = follower.pathBuilder()
                 .addPath(new BezierLine(shootPose, pickupPose2))
                 .setLinearHeadingInterpolation(shootPose.getHeading(), pickupPose2.getHeading())
                 .build();
 
         // Intake drive: Pedro follows from pickupPose2 to afterIntake1 while intake runs
-        toAfterIntake1 = follower.pathBuilder()
+        toPickup2End = follower.pathBuilder()
                 .addPath(new BezierLine(pickupPose2, Intake2End))
                 .setLinearHeadingInterpolation(pickupPose2.getHeading(), Intake2End.getHeading())
                 .build();
 
-        toShoot2 = follower.pathBuilder()
+        toShootFromPickup2 = follower.pathBuilder()
                 .addPath(new BezierCurve(Intake2End, intermediatePose1, shootPose))
                 .setLinearHeadingInterpolation(Intake2End.getHeading(), shootPose.getHeading())
                 .build();
@@ -202,23 +202,23 @@ public class Auto_nomous extends LinearOpMode {
                 .setLinearHeadingInterpolation(clearPose.getHeading(), pickFromClearPose.getHeading())
                 .build();
 
-        toShoot3 = follower.pathBuilder()
+        toShootFromPickFromClear = follower.pathBuilder()
                 .addPath(new BezierCurve(pickFromClearPose, intermediatePose1, shootPose))
                 .setLinearHeadingInterpolation(pickFromClearPose.getHeading(), shootPose.getHeading())
                 .build();
 
         // ── Fifth pickup cycle paths (sweep along y=84) ───────────────────
-        toPreSweep = follower.pathBuilder()
+        toPickup1Start = follower.pathBuilder()
                 .addPath(new BezierLine(shootPose, pickupPose1))
                 .setLinearHeadingInterpolation(shootPose.getHeading(), pickupPose1.getHeading())
                 .build();
 
-        toSweepEnd = follower.pathBuilder()
+        toPickup1End = follower.pathBuilder()
                 .addPath(new BezierLine(pickupPose1, Intake1End))
                 .setLinearHeadingInterpolation(pickupPose1.getHeading(), Intake1End.getHeading())
                 .build();
 
-        sweepToShoot = follower.pathBuilder()
+        toShootFromPickup1 = follower.pathBuilder()
                 .addPath(new BezierLine(Intake1End, shootPose))
                 .setLinearHeadingInterpolation(Intake1End.getHeading(), shootPose.getHeading())
                 .build();
@@ -330,7 +330,7 @@ public class Auto_nomous extends LinearOpMode {
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_1) {
                     Gate.setPosition(GATE_CLOSED);
                     resetHood();
-                    follower.followPath(toPickup2, true);
+                    follower.followPath(toPickup2Start, true);
                     middleTransfer.setPower(0);
                     setState(4);
                 }
@@ -349,14 +349,14 @@ public class Auto_nomous extends LinearOpMode {
                 if (actionTimer.getElapsedTimeSeconds() >= TRANSFER_RESET_DELAY) {
                     activeTargetRPM = TARGET_RPM_FUTURE;
                     middleTransfer.setPower(1.0);
-                    follower.followPath(toAfterIntake1, true);
+                    follower.followPath(toPickup2End, true);
                     setState(6);
                 }
                 break;
 
             case 6:
                 if (!follower.isBusy()) {
-                    follower.followPath(toShoot2, true);
+                    follower.followPath(toShootFromPickup2, true);
                     setState(7);
                 }
                 break;
@@ -417,7 +417,7 @@ public class Auto_nomous extends LinearOpMode {
             case 13:
                 if (actionTimer.getElapsedTimeSeconds() >= PICK_FROM_CLEAR_SECONDS) {
                     activeTargetRPM = TARGET_RPM_FUTURE;
-                    follower.followPath(toShoot3, true);
+                    follower.followPath(toShootFromPickFromClear, true);
                     setState(14);
                 }
                 break;
@@ -479,7 +479,7 @@ public class Auto_nomous extends LinearOpMode {
             case 20:
                 if (actionTimer.getElapsedTimeSeconds() >= PICK_FROM_CLEAR_SECONDS) {
                     activeTargetRPM = TARGET_RPM_FUTURE;
-                    follower.followPath(toShoot3, true);
+                    follower.followPath(toShootFromPickFromClear, true);
                     setState(21);
                 }
                 break;
@@ -506,7 +506,7 @@ public class Auto_nomous extends LinearOpMode {
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_2) {
                     Gate.setPosition(GATE_CLOSED);
                     resetHood();
-                    follower.followPath(toPreSweep, true);
+                    follower.followPath(toPickup1Start, true);
                     middleTransfer.setPower(0);
                     setState(24);
                 }
@@ -524,14 +524,14 @@ public class Auto_nomous extends LinearOpMode {
             // STATE 25: Turn on intake, drive sweep to (122, 84)
             case 25:
                 middleTransfer.setPower(1.0);
-                follower.followPath(toSweepEnd, true);
+                follower.followPath(toPickup1End, true);
                 setState(26);
                 break;
 
             // STATE 26: Wait to arrive at sweepEndPose, then drive to shoot pose (intake stays on)
             case 26:
                 if (!follower.isBusy()) {
-                    follower.followPath(sweepToShoot, true);
+                    follower.followPath(toShootFromPickup1, true);
                     setState(27);
                 }
                 break;
