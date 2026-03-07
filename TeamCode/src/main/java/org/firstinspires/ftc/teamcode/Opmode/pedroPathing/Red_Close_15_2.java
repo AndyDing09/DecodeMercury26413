@@ -62,7 +62,7 @@ public class Red_Close_15_2 extends LinearOpMode {
     // =======================
     // Gate Positions
     // =======================
-    private static final double GATE_CLOSED = 0.5;
+    private static final double GATE_CLOSED = 0.02;
     private static final double GATE_OPEN   = 0.27;
 
     // =======================
