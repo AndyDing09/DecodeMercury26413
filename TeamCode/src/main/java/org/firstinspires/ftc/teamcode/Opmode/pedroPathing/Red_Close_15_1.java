@@ -71,6 +71,7 @@ public class Red_Close_15_1 extends LinearOpMode {
     private static final double SERVO_HOME           = 0.5;
     private static final double SERVO_EXTENDED       = 0.0;
     private static final double TRANSFER_RESET_DELAY = 0.35;
+    private static final double INTAKE_SPEED = 0.75;
 
     // =======================
     // Intake wait at pick pose
@@ -377,7 +378,9 @@ public class Red_Close_15_1 extends LinearOpMode {
                 if (actionTimer.getElapsedTimeSeconds() >= TRANSFER_RESET_DELAY) {
                     activeTargetRPM = TARGET_RPM_FUTURE;
                     middleTransfer.setPower(1.0);
+                    follower.setMaxPower(INTAKE_SPEED);
                     follower.followPath(toPickup2End, true);
+                    follower.setMaxPower(1.0);
                     setState(6);
                 }
                 break;
@@ -484,7 +487,9 @@ public class Red_Close_15_1 extends LinearOpMode {
             case 17:
                 if (!follower.isBusy()) {
                     middleTransfer.setPower(1.0);
+                    follower.setMaxPower(INTAKE_SPEED);
                     follower.followPath(toPickup3End, true);
+                    follower.setMaxPower(1.0);
                     setState(18);
                 }
                 break;
@@ -531,7 +536,9 @@ public class Red_Close_15_1 extends LinearOpMode {
             case 22:
                 if (!follower.isBusy()) {
                     middleTransfer.setPower(1.0);
+                    follower.setMaxPower(INTAKE_SPEED);
                     follower.followPath(toPickup1End, true);
+                    follower.setMaxPower(1.0);
                     setState(23);
                 }
                 break;
