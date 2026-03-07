@@ -235,7 +235,7 @@ public class Turret_Odometry_and_Limelight_Test extends OpMode {
 
         // --- Live tuner panel ---
         telemetry.addLine("===== LIVE TUNER =====");
-        telemetry.addData("GP1 START", "toggle tuner ON/OFF");
+        telemetry.addData("GP1 START", "toggle tuner ON/OFFs");
         telemetry.addData("Tuner", tunerActive
                 ? "ON  — dpad UP/DN:select  L/R:adjust  LB:coarse"
                 : "OFF");
