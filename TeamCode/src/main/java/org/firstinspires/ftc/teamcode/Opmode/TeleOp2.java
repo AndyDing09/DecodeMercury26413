@@ -1,9 +1,12 @@
 package org.firstinspires.ftc.teamcode.Opmode;
 
+import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
+import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
 import org.firstinspires.ftc.teamcode.subsystems.Shooter;
@@ -16,7 +19,10 @@ public class TeleOp2 extends LinearOpMode {
     private Intake intake;
     private Shooter shooter;
     private Turret turret;
+    private Follower follower;
     private VoltageSensor voltageSensor;
+
+    private static final Pose START_POSE = new Pose(72, 72, Math.toRadians(0));
 
     @Override
     public void runOpMode() {
@@ -26,7 +32,12 @@ public class TeleOp2 extends LinearOpMode {
         turret        = new Turret(hardwareMap);
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
 
-        telemetry.addLine("Ready. GP1: Y/X=Hood Up/Down | GP2: UP/DOWN=cycle param, LEFT/RIGHT=adjust, LB=coarse, A=reset enc, X=track");
+        follower = Constants.createFollower(hardwareMap);
+        follower.setStartingPose(START_POSE);
+
+        telemetry.addLine("Ready. Auto-calc shooter from odometry.");
+        telemetry.addData("Start Pose", String.format("(%.0f, %.0f) hdg=%.0f",
+                START_POSE.getX(), START_POSE.getY(), Math.toDegrees(START_POSE.getHeading())));
         telemetry.update();
 
         turret.centerTurret(this);
@@ -36,25 +47,29 @@ public class TeleOp2 extends LinearOpMode {
         shooter.initControllers();
 
         while (opModeIsActive()) {
-            if (gamepad2.a) turret.resetEncoder(this);
+            // Update odometry (Pinpoint reads pods directly, no motor conflict)
+            follower.update();
 
             // Drive
             drivetrain.drive(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
 
+            if (gamepad2.a) turret.resetEncoder(this);
+
             // Intake
             intake.update(gamepad1.circle, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
-
-            // Hood angle
-            shooter.handleHoodInput(gamepad1.y, gamepad1.x);
 
             // Shooter input + outtake sequence
             shooter.handleShooterInput(gamepad1.left_bumper, gamepad1.right_bumper, gamepad1.triangle, intake);
             shooter.updateOuttakeSequence(intake, voltageSensor);
+
+            // Auto-calc RPM and hood from odometry (overrides when shooter is on)
+            shooter.updateFromOdometry(follower, telemetry);
+
             shooter.updatePIDF(voltageSensor, telemetry);
 
             // Turret
             turret.updateTuning(gamepad2.dpad_up, gamepad2.dpad_down, gamepad2.dpad_left, gamepad2.dpad_right, gamepad2.left_bumper);
-            turret.update(gamepad2.cross, gamepad2.right_stick_x, voltageSensor, telemetry, this);
+            turret.updateTracking(gamepad2.cross, gamepad2.right_stick_x, voltageSensor, telemetry, this);
 
             // Telemetry
             turret.addTelemetry(telemetry);

@@ -10,7 +10,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.limelightvision.LLResult;
 
-@TeleOp(name = "Turret + Search")
+@TeleOp(name = "Turret  + Search")
 public class Turret_Odometry_and_Limelight_Test extends OpMode {
 
     private DcMotor     turretMotor;
@@ -18,10 +18,10 @@ public class Turret_Odometry_and_Limelight_Test extends OpMode {
     private ElapsedTime loopTimer = new ElapsedTime();
 
     // ---------- PID Tuning (now mutable so live tuner can change them) ----------
-    private double kP             = 0.040;
-    private double kD             = 0.006;  // high damping — prevents lurch-oscillation from herringbone friction
-    private double kF             = 0.12;   // herringbone gears need ~0.10-0.15 to break static friction
-    private double DEADZONE       = 1.5;    // wider deadzone — don't fight friction on small errors, let brake hold
+    private double kP             = 0.030;
+    private double kD             = 0.002;  // high damping — prevents lurch-oscillation from herringbone friction
+    private double kF             = 0.06;   // herringbone gears need ~0.10-0.15 to break static friction
+    private double DEADZONE       = 3;    // wider deadzone — don't fight friction on small errors, let brake hold
     private double SCAN_PWR       = 0.25;
 
     private static final double MAX_POWER = 0.90;
@@ -235,7 +235,7 @@ public class Turret_Odometry_and_Limelight_Test extends OpMode {
 
         // --- Live tuner panel ---
         telemetry.addLine("===== LIVE TUNER =====");
-        telemetry.addData("GP1 START", "toggle tuner ON/OFFs");
+        telemetry.addData("GP1 START", "toggle tuner ON/OFF");
         telemetry.addData("Tuner", tunerActive
                 ? "ON  — dpad UP/DN:select  L/R:adjust  LB:coarse"
                 : "OFF");
