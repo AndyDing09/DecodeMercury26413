@@ -19,8 +19,8 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 import org.firstinspires.ftc.teamcode.testing.PIDFMotorController;
 
-@Autonomous(name = "Auto_nomous", group = "Auto")
-public class Auto_nomous extends LinearOpMode {
+@Autonomous(name = "RC2", group = "Auto")
+public class Red_Close_15_2 extends LinearOpMode {
 
     // =======================
     // Hardware
@@ -71,12 +71,13 @@ public class Auto_nomous extends LinearOpMode {
     private static final double SERVO_HOME           = 0.5;
     private static final double SERVO_EXTENDED       = 0.0;
     private static final double TRANSFER_RESET_DELAY = 0.35;
+    private static final double INTAKE_SPEED = 0.75;
 
     // =======================
     // Intake wait at pick pose
     // =======================
     private static final double PICK_FROM_CLEAR_SECONDS = 1.5;
-    private static final double WAIT_AT_GATE_1 = 0.25;
+    private static final double WAIT_AT_GATE = 0.25;
 
     // =======================
     // Poses
@@ -88,9 +89,10 @@ public class Auto_nomous extends LinearOpMode {
     private final Pose clearPose         = new Pose(129, 68,  Math.toRadians(0));
     private final Pose pickFromClearPose = new Pose(137, 59,  Math.toRadians(45));
     private final Pose pickupPose1       = new Pose(102, 84,  Math.toRadians(0));
-    private final Pose Intake1End  = new Pose(128, 84,  Math.toRadians(0));
-    private final Pose intermediatePose1  = new Pose(108, 60, Math.toRadians(22.5));
-    private final Pose intermediatePose2  = new Pose(102, 66, Math.toRadians(22.5));
+    private final Pose Intake1End        = new Pose(128, 84,  Math.toRadians(0));
+    private final Pose intermediatePose1 = new Pose(108, 60,  Math.toRadians(22.5));
+    private final Pose intermediatePose2 = new Pose(102, 66,  Math.toRadians(22.5));
+    private final Pose parkPose          = new Pose(118, 68,  Math.toRadians(0));
 
     // =======================
     // PedroPathing
@@ -106,6 +108,7 @@ public class Auto_nomous extends LinearOpMode {
     private PathChain toPickup1Start;
     private PathChain toPickup1End;
     private PathChain toShootFromPickup1;
+    private PathChain toPark;
 
     // =======================
     // State Machine
@@ -223,6 +226,12 @@ public class Auto_nomous extends LinearOpMode {
                 .setLinearHeadingInterpolation(Intake1End.getHeading(), shootPose.getHeading())
                 .build();
 
+        // ── Park path (shootPose → parkPose) ──────────────────────────────
+        toPark = follower.pathBuilder()
+                .addPath(new BezierLine(shootPose, parkPose))
+                .setLinearHeadingInterpolation(shootPose.getHeading(), parkPose.getHeading())
+                .build();
+
         telemetry.addLine("✅ Initialized");
         telemetry.update();
 
@@ -292,6 +301,7 @@ public class Auto_nomous extends LinearOpMode {
     }
 
     // ── State Machine ──────────────────────────────────────────────────────
+    // PATH: shoot → pickup2 → shoot → clear→pickFromClear → shoot → clear→pickFromClear → shoot → pickup1 → shoot → park
     private void updateStateMachine() {
         switch (state) {
 
@@ -349,7 +359,9 @@ public class Auto_nomous extends LinearOpMode {
                 if (actionTimer.getElapsedTimeSeconds() >= TRANSFER_RESET_DELAY) {
                     activeTargetRPM = TARGET_RPM_FUTURE;
                     middleTransfer.setPower(1.0);
+                    follower.setMaxPower(INTAKE_SPEED);
                     follower.followPath(toPickup2End, true);
+                    follower.setMaxPower(1.0);
                     setState(6);
                 }
                 break;
@@ -399,7 +411,7 @@ public class Auto_nomous extends LinearOpMode {
 
             // STATE 11: Wait at gate, then start intake and drive to pickFromClearPose
             case 11:
-                if (actionTimer.getElapsedTimeSeconds() >= WAIT_AT_GATE_1) {
+                if (actionTimer.getElapsedTimeSeconds() >= WAIT_AT_GATE) {
                     middleTransfer.setPower(1.0);
                     follower.followPath(toPickFromClear, true);
                     setState(12);
@@ -461,7 +473,7 @@ public class Auto_nomous extends LinearOpMode {
 
             // STATE 18: Wait at gate, then start intake and drive to pickFromClearPose
             case 18:
-                if (actionTimer.getElapsedTimeSeconds() >= WAIT_AT_GATE_1) {
+                if (actionTimer.getElapsedTimeSeconds() >= WAIT_AT_GATE) {
                     middleTransfer.setPower(1.0);
                     follower.followPath(toPickFromClear, true);
                     setState(19);
@@ -524,7 +536,9 @@ public class Auto_nomous extends LinearOpMode {
             // STATE 25: Turn on intake, drive sweep to (122, 84)
             case 25:
                 middleTransfer.setPower(1.0);
+                follower.setMaxPower(INTAKE_SPEED);
                 follower.followPath(toPickup1End, true);
+                follower.setMaxPower(1.0);
                 setState(26);
                 break;
 
@@ -553,12 +567,22 @@ public class Auto_nomous extends LinearOpMode {
                 }
                 break;
 
-            // STATE 29: Shoot, then close gate, reset hood (shooter keeps spinning)
+            // STATE 29: Shoot, then close gate, reset hood, drive to park
             case 29:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_2) {
                     Gate.setPosition(GATE_CLOSED);
                     middleTransfer.setPower(0);
                     resetHood();
+                    follower.followPath(toPark, true);
+                    setState(30);
+                }
+                break;
+
+            // ── PARK ─────────────────────────────────────────────────────
+
+            // STATE 30: Wait to arrive at parkPose, then stop
+            case 30:
+                if (!follower.isBusy()) {
                     setState(-1);
                 }
                 break;
