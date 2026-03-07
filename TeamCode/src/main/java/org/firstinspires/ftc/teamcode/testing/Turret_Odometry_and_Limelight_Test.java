@@ -10,7 +10,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.limelightvision.LLResult;
 
-@TeleOp(name = "Turret Tracking + Search")
+@TeleOp(name = "Turret + Search")
 public class Turret_Odometry_and_Limelight_Test extends OpMode {
 
     private DcMotor     turretMotor;
@@ -18,13 +18,13 @@ public class Turret_Odometry_and_Limelight_Test extends OpMode {
     private ElapsedTime loopTimer = new ElapsedTime();
 
     // ---------- PID Tuning (now mutable so live tuner can change them) ----------
-    private double kP             = 0.022;
-    private double kD             = 0.0015;
-    private double kF             = 0.00;
-    private double DEADZONE       = 1.0;   // degrees
-    private double SCAN_PWR       = 0.15;  // renamed from SCAN_POWER (can't reassign a final)
+    private double kP             = 0.040;
+    private double kD             = 0.006;  // high damping — prevents lurch-oscillation from herringbone friction
+    private double kF             = 0.12;   // herringbone gears need ~0.10-0.15 to break static friction
+    private double DEADZONE       = 1.5;    // wider deadzone — don't fight friction on small errors, let brake hold
+    private double SCAN_PWR       = 0.25;
 
-    private static final double MAX_POWER = 0.6;
+    private static final double MAX_POWER = 0.90;
 
     // ---------- Hardware Constants ----------
     private static final int LEFT_LIMIT  = -430;
