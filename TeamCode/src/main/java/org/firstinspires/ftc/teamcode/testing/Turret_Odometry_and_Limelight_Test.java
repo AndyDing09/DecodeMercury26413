@@ -10,7 +10,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.limelightvision.LLResult;
 
-@TeleOp(name = "Turret  + Search")
+@TeleOp(name = "Turret  + Searchs")
 public class Turret_Odometry_and_Limelight_Test extends OpMode {
 
     private DcMotor     turretMotor;

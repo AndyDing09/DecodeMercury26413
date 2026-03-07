@@ -13,7 +13,7 @@ public final class MathLib {
     private MathLib() {}
 
     // ==================== PHYSICAL CONSTANTS ====================
-    public static final double GRAVITY = 9.81;
+    public static final double GRAVITY = 9.810;
     public static final double TARGET_HEIGHT = 1.22;         // goal height in meters
     public static final double LAUNCHER_HEIGHT = 0.32385;    // shooter height in meters
     public static final double MIN_HOOD_ANGLE = 26.0;

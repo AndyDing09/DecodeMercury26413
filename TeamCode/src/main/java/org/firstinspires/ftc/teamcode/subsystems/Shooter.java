@@ -35,7 +35,7 @@ public class Shooter {
     private static final double HOOD_ANGLE_STEP = 0.05;
     private static final double HOOD_DEADZONE   = 0.03;
 
-    private static final double GATE_OPEN   = 0.27;
+    private static final double GATE_OPEN   = 0.26;
     private static final double GATE_CLOSED = 0.1;
 
     private double currentHoodAnglePos = HOOD_SERVO_INIT;

@@ -21,7 +21,7 @@ public class Turret {
     private double kP       = 0.040;
     private double kD       = 0.006;
     private double kF       = 0.12;
-    private double DEADZONE = 1.5;
+    private double DEADZONE = 1.0;
     private double SCAN_PWR = 0.5;
 
     private static final double MAX_POWER = 0.90;
