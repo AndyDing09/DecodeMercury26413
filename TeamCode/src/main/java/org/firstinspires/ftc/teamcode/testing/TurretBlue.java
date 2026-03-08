@@ -11,7 +11,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
-public class Turret {
+public class TurretBlue {
     private DcMotor turretMotor;
     private Limelight3A limelight;
     private ElapsedTime loopTimer = new ElapsedTime();
@@ -39,7 +39,7 @@ public class Turret {
 
     // ---------- Hardware Limits ----------
     private static final int LEFT_LIMIT  = -435;
-    private static final int RIGHT_LIMIT = 415;
+    private static final int RIGHT_LIMIT = 380;
 
     // ---------- Tracking State ----------
     private static final int LOSS_DEBOUNCE_FRAMES = 8;
@@ -56,7 +56,7 @@ public class Turret {
     private double currentOutputPower = 0;
     private boolean isFar = false;
 
-    public Turret(HardwareMap hardwareMap) {
+    public TurretBlue(HardwareMap hardwareMap) {
         turretMotor = hardwareMap.get(DcMotor.class, "turretMotor");
         turretMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         turretMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);

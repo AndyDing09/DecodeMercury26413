@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.testing;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
+
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
@@ -10,15 +11,15 @@ import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
 import org.firstinspires.ftc.teamcode.subsystems.Shooter;
-import org.firstinspires.ftc.teamcode.subsystems.Turret;
+import org.firstinspires.ftc.teamcode.subsystems.TurretRed;
 
-@TeleOp(name = "TeleOp 3 - Odometry Shooter", group = "TeleOp")
-public class TeleOp3 extends LinearOpMode {
+@TeleOp(name = "TeleOp 3", group = "TeleOp")
+public class TeleOpRed extends LinearOpMode {
 
     private Drivetrain drivetrain;
     private Intake intake;
     private Shooter shooter;
-    private Turret turret;
+    private TurretRed turret;
     private Follower follower;
     private VoltageSensor voltageSensor;
 
@@ -27,17 +28,17 @@ public class TeleOp3 extends LinearOpMode {
     @Override
     public void runOpMode() {
         // Initialize subsystems
-        drivetrain    = new Drivetrain(hardwareMap);
-        intake        = new Intake(hardwareMap);
-        shooter       = new Shooter(hardwareMap);
-        turret        = new Turret(hardwareMap);
+        drivetrain = new Drivetrain(hardwareMap);
+        intake = new Intake(hardwareMap);
+        shooter = new Shooter(hardwareMap);
+        turret = new TurretRed(hardwareMap);
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
 
         // Initialize Pedro Pathing follower
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(START_POSE);
 
-        telemetry.addLine("Ready. Auto-calc shooter from odometry.");
+        telemetry.addLine("Ready. LB=4500 RPM, RB=3000 RPM.");
         telemetry.update();
 
         waitForStart();
@@ -48,24 +49,16 @@ public class TeleOp3 extends LinearOpMode {
             // 1. Update odometry (Reads Pinpoint/Encoders)
             follower.update();
 
-            // 2. Obtain Robot Location from Follower
-            Pose currentPose = follower.getPose();
-            double robotX = currentPose.getX();
-            double robotY = currentPose.getY();
-            double robotHeading = currentPose.getHeading(); // Returns radians
-
             // 3. Drive Control
             drivetrain.drive(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
 
             // 4. Intake Control
             intake.update(gamepad1.circle, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
 
-            // 5. Shooter Control (Passing the Odometry data)
+            // 5. Shooter Control (fixed RPM from bumpers — LB=4500, RB=3000)
+            shooter.handleHoodInput(gamepad1.y, gamepad1.x);
             shooter.handleShooterInput(gamepad1.left_bumper, gamepad1.right_bumper, gamepad1.triangle, intake);
             shooter.updateOuttakeSequence(intake, voltageSensor);
-
-            // NOTE: You can pass the whole follower, OR update your shooter class to accept X and Y directly:
-            shooter.updateFromOdometry(follower, telemetry);
             shooter.updatePIDF(voltageSensor, telemetry);
 
             // 6. Turret Control
@@ -77,14 +70,10 @@ public class TeleOp3 extends LinearOpMode {
             // 7. Telemetry output
             turret.addTelemetry(telemetry);
 
-            telemetry.addLine("===== ODOMETRY LOCATION =====");
-            telemetry.addData("Robot X", String.format("%.1f inches", robotX));
-            telemetry.addData("Robot Y", String.format("%.1f inches", robotY));
-            telemetry.addData("Robot Heading", String.format("%.1f deg", Math.toDegrees(robotHeading)));
-
             telemetry.addLine("===== SHOOTER =====");
             telemetry.addData("Target RPM", (int) shooter.getTargetRPM());
-            telemetry.addData("Target Hood Pos", String.format("%.3f", shooter.getHoodAnglePos()));
+            telemetry.addData("Hood Pos", String.format("%.3f", shooter.getHoodAnglePos()));
+            telemetry.addData("Shooter Active", shooter.isShooterOn() ? "YES" : "no");
 
             telemetry.update();
         }

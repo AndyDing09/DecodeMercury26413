@@ -27,7 +27,7 @@ public class Shooter {
 
     private static final double TICKS_PER_REV   = 28.0;
     private static final double NOMINAL_VOLTAGE  = 12.0;
-    private static final double MAX_SHOOTER_RPM  = 4800.0;
+    private static final double MAX_SHOOTER_RPM  = 3000.0;
 
     private static final double HOOD_SERVO_INIT = 0.5;
     private static final double MIN_HOOD_SERVO  = 0.0;
@@ -47,9 +47,11 @@ public class Shooter {
     private boolean lastLeftBumper, lastRightBumper, lastTriangle;
 
     private double targetRPM = 0;
-    private double kP_shooter, kI_shooter, kD_shooter, kF_shooter;
-    private final double kP_shooter_low  = 0.0012, kI_shooter_low  = 0.0003, kD_shooter_low  = 0.00008, kF_shooter_low  = 0.00045;
-    private final double kP_shooter_high = 0.0015, kI_shooter_high = 0.0004, kD_shooter_high = 0.00010, kF_shooter_high = 0.00045;
+    // PIDF gains — matched to shooterspeedTest (the working tuned values)
+    private double kP_shooter = 0.0064;
+    private double kI_shooter = 0.00001;
+    private double kD_shooter = 0.0;
+    private double kF_shooter = 0.0007;
 
     private PIDFMotorController leftController;
     private PIDFMotorController rightController;
@@ -155,16 +157,6 @@ public class Shooter {
             return;
         }
 
-        if (targetRPM >= 3600) {
-            kP_shooter = kP_shooter_high; kI_shooter = kI_shooter_high;
-            kD_shooter = kD_shooter_high; kF_shooter = kF_shooter_high;
-        } else {
-            kP_shooter = kP_shooter_low;  kI_shooter = kI_shooter_low;
-            kD_shooter = kD_shooter_low;  kF_shooter = kF_shooter_low;
-        }
-        if (leftController  != null) leftController .setTunings(kP_shooter, kI_shooter, kD_shooter, kF_shooter);
-        if (rightController != null) rightController.setTunings(kP_shooter, kI_shooter, kD_shooter, kF_shooter);
-
         double currentVoltage = voltageSensor.getVoltage();
         double avgVelocity = (shooterLeft.getVelocity() + shooterRight.getVelocity()) / 2.0;
         double powerLeft  = leftController .computePowerForTargetRPMWithVoltageCompensation(targetRPM, shooterLeft .getVelocity(), currentVoltage, NOMINAL_VOLTAGE);
@@ -209,10 +201,9 @@ public class Shooter {
         hoodServo2.setPosition(position);
     }
 
-    /**
-     * Call each loop with the Follower to auto-calculate RPM and hood angle
-     * from the robot's current field position using MathLib ballistics.
-     */
+    /*
+     * Odometry-based auto-calc — commented out, using fixed RPM from bumpers instead.
+     *
     public void updateFromOdometry(Follower follower, Telemetry telemetry) {
         Pose pose = follower.getPose();
         LauncherSolution solution = MathLib.solveFromPosition(pose.getX(), pose.getY());
@@ -225,14 +216,12 @@ public class Shooter {
             autoCalcEnabled = false;
         }
 
-        // Apply auto-calc values when shooter is running
         if (shooterOn && !shooterKilled && autoCalcEnabled) {
             targetRPM = autoCalcRPM;
             currentHoodAnglePos = autoCalcServoPos;
             updateHoodServos(currentHoodAnglePos);
         }
 
-        // Telemetry
         double dx = MathLib.GOAL_CENTER_X - pose.getX();
         double dy = MathLib.GOAL_CENTER_Y - pose.getY();
         double distIn = Math.sqrt(dx * dx + dy * dy);
@@ -245,6 +234,7 @@ public class Shooter {
             telemetry.addData("Calc Hood Servo", String.format("%.3f", autoCalcServoPos));
         }
     }
+    */
 
     public OuttakeState getOuttakeState() { return outtakeState; }
     public double getTargetRPM() { return targetRPM; }
