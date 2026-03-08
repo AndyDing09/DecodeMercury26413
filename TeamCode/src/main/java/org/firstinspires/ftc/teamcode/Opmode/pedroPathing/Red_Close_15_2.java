@@ -11,14 +11,12 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 import org.firstinspires.ftc.teamcode.subsystems.TurretRed;
-import org.firstinspires.ftc.teamcode.testing.PIDFMotorController;
+import org.firstinspires.ftc.teamcode.subsystems.Shooter;
 
 @Autonomous(name = "RC2", group = "Auto")
 public class Red_Close_15_2 extends LinearOpMode {
@@ -28,41 +26,21 @@ public class Red_Close_15_2 extends LinearOpMode {
     // =======================
     private DcMotor frontLeftDrive, backLeftDrive, frontRightDrive, backRightDrive;
     private DcMotor middleTransfer;
-    private DcMotorEx shooterLeft, shooterRight;
     private VoltageSensor voltageSensor;
-    private Servo Gate;
     private Servo transferBlocker;
-    private Servo hoodServo1, hoodServo2;
+    private Servo Gate; // Controlled locally for precise Auto timing
 
     private TurretRed turret;
+    private Shooter shooter;
+
     private com.qualcomm.robotcore.util.ElapsedTime matchTimer = new com.qualcomm.robotcore.util.ElapsedTime();
     private static final double TURRET_START_DELAY = 2.0;
-
-    // Hood angle — starts at 0.5, drops 0.02 per 300 ticks of velocity drop (ball launch)
-    private static final double HOOD_POS_START = 0.5;
-    private static final double HOOD_DROP_PER_LAUNCH = 0.02;
-    private static final double LAUNCH_DROP_THRESHOLD = 300.0;  // ticks/sec velocity drop = ball fired
-    private double currentHoodPos = HOOD_POS_START;
-    private double lastAvgVelocity = 0;
 
     // =======================
     // Shooter Constants
     // =======================
-    private static final double TICKS_PER_REV      = 28.0;
-    private static final double NOMINAL_VOLTAGE    = 12.0;
-    private static final double TARGET_RPM_INITIAL = 3200;
-    private static final double TARGET_RPM_FUTURE  = 3200;
-
-    // PIDF gains — matched to shooterspeedTest (the working tuned values)
-    private static final double kP_shooter = 0.0064;
-    private static final double kI_shooter = 0.00001;
-    private static final double kD_shooter = 0.0;
-    private static final double kF_shooter = 0.0007;
-
-    private PIDFMotorController leftController;
-    private PIDFMotorController rightController;
-
-    // Active RPM target — starts at initial, swapped to future after first shot
+    private static final double TARGET_RPM_INITIAL = 3400;
+    private static final double TARGET_RPM_FUTURE  = 3400;
     private double activeTargetRPM = TARGET_RPM_INITIAL;
 
     // =======================
@@ -75,7 +53,6 @@ public class Red_Close_15_2 extends LinearOpMode {
     // Intake Constants
     // =======================
     private static final double SERVO_HOME           = 0.5;
-    private static final double SERVO_EXTENDED       = 0.0;
     private static final double TRANSFER_RESET_DELAY = 0.35;
     private static final double INTAKE_SPEED = 0.75;
 
@@ -86,7 +63,7 @@ public class Red_Close_15_2 extends LinearOpMode {
     private static final double WAIT_AT_GATE = 0.25;
 
     // =======================
-    // Poses
+    // Poses (Unchanged)
     // =======================
     private final Pose startPose         = new Pose(124, 124, Math.toRadians(45));
     private final Pose shootPose         = new Pose(96,  96,  Math.toRadians(45));
@@ -104,17 +81,9 @@ public class Red_Close_15_2 extends LinearOpMode {
     // PedroPathing
     // =======================
     private Follower follower;
-    private PathChain toShootFromStart;
-    private PathChain toPickup2Start;
-    private PathChain toPickup2End;
-    private PathChain toShootFromPickup2;
-    private PathChain toClear;
-    private PathChain toPickFromClear;
-    private PathChain toShootFromPickFromClear;
-    private PathChain toPickup1Start;
-    private PathChain toPickup1End;
-    private PathChain toShootFromPickup1;
-    private PathChain toPark;
+    private PathChain toShootFromStart, toPickup2Start, toPickup2End, toShootFromPickup2;
+    private PathChain toClear, toPickFromClear, toShootFromPickFromClear;
+    private PathChain toPickup1Start, toPickup1End, toShootFromPickup1, toPark;
 
     // =======================
     // State Machine
@@ -149,34 +118,21 @@ public class Red_Close_15_2 extends LinearOpMode {
         middleTransfer = hardwareMap.get(DcMotor.class, "middleTransfer");
         middleTransfer.setDirection(DcMotor.Direction.FORWARD);
 
-        shooterLeft  = hardwareMap.get(DcMotorEx.class, "shooterLeft");
-        shooterRight = hardwareMap.get(DcMotorEx.class, "shooterRight");
-        voltageSensor = hardwareMap.voltageSensor.iterator().next();
-
-        shooterLeft.setDirection(DcMotorSimple.Direction.REVERSE);
-        shooterRight.setDirection(DcMotorSimple.Direction.FORWARD);
-        shooterLeft.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        shooterRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        shooterLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        shooterRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-
-        hoodServo1 = hardwareMap.servo.get("angleChange1");
-        hoodServo2 = hardwareMap.servo.get("angleChange2");
-        hoodServo1.setPosition(HOOD_POS_START);
-        hoodServo2.setPosition(HOOD_POS_START);
-
-        Gate = hardwareMap.servo.get("Gate");
-        Gate.setPosition(GATE_CLOSED);
-
         transferBlocker = hardwareMap.servo.get("transferBlocker");
         transferBlocker.setPosition(SERVO_HOME);
 
-        // ── Turret Init ──
+        voltageSensor = hardwareMap.voltageSensor.iterator().next();
+
+        // ── Subsystem Init ─────────────────────────────────────────────────
         turret = new TurretRed(hardwareMap);
 
-        // ── PIDF Controllers (matched to shooterspeedTest gains) ──
-        leftController  = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_shooter, TICKS_PER_REV);
-        rightController = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_shooter, TICKS_PER_REV);
+        shooter = new Shooter(hardwareMap);
+        shooter.initControllers();
+
+        // Grab the gate directly from the hardware map or via the new getGate() method
+        // so we can execute precise open/close timings in the autonomous state machine
+        Gate = hardwareMap.servo.get("Gate");
+        Gate.setPosition(GATE_CLOSED);
 
         // ── Pedro Init ─────────────────────────────────────────────────────
         follower = Constants.createFollower(hardwareMap);
@@ -192,7 +148,6 @@ public class Red_Close_15_2 extends LinearOpMode {
                 .setLinearHeadingInterpolation(shootPose.getHeading(), pickupPose2.getHeading())
                 .build();
 
-        // Intake drive: Pedro follows from pickupPose2 to afterIntake1 while intake runs
         toPickup2End = follower.pathBuilder()
                 .addPath(new BezierLine(pickupPose2, Intake2End))
                 .setLinearHeadingInterpolation(pickupPose2.getHeading(), Intake2End.getHeading())
@@ -203,7 +158,6 @@ public class Red_Close_15_2 extends LinearOpMode {
                 .setLinearHeadingInterpolation(Intake2End.getHeading(), shootPose.getHeading())
                 .build();
 
-        // ── Paths for third/fourth ball pickup ────────────────────────────
         toClear = follower.pathBuilder()
                 .addPath(new BezierCurve(shootPose, intermediatePose2, clearPose))
                 .setLinearHeadingInterpolation(shootPose.getHeading(), clearPose.getHeading())
@@ -219,7 +173,6 @@ public class Red_Close_15_2 extends LinearOpMode {
                 .setLinearHeadingInterpolation(pickFromClearPose.getHeading(), shootPose.getHeading())
                 .build();
 
-        // ── Fifth pickup cycle paths (sweep along y=84) ───────────────────
         toPickup1Start = follower.pathBuilder()
                 .addPath(new BezierLine(shootPose, pickupPose1))
                 .setLinearHeadingInterpolation(shootPose.getHeading(), pickupPose1.getHeading())
@@ -235,7 +188,6 @@ public class Red_Close_15_2 extends LinearOpMode {
                 .setLinearHeadingInterpolation(Intake1End.getHeading(), shootPose.getHeading())
                 .build();
 
-        // ── Park path (shootPose → parkPose) ──────────────────────────────
         toPark = follower.pathBuilder()
                 .addPath(new BezierLine(shootPose, parkPose))
                 .setLinearHeadingInterpolation(shootPose.getHeading(), parkPose.getHeading())
@@ -246,16 +198,16 @@ public class Red_Close_15_2 extends LinearOpMode {
 
         waitForStart();
 
-        // Reset PIDF timers so first frame doesn't have 30+ second stale dt
-        leftController.reset();
-        rightController.reset();
-
         matchTimer.reset();
         setState(0);
 
+        // Turn on the shooter for the duration of autonomous
+        shooter.setShooterOn(true);
+
         while (opModeIsActive()) {
             follower.update();
-            updateShooter();
+            updateShooter(); // Delegate logic entirely to the Shooter class
+
             if (matchTimer.seconds() >= TURRET_START_DELAY) {
                 turret.update();
             }
@@ -264,54 +216,28 @@ public class Red_Close_15_2 extends LinearOpMode {
             telemetry.addData("State", state);
             telemetry.addData("Path Busy", follower.isBusy());
             telemetry.addData("Timer (s)", String.format("%.2f", actionTimer.getElapsedTimeSeconds()));
-            double rpmL = shooterLeft.getVelocity()  * 60.0 / TICKS_PER_REV;
-            double rpmR = shooterRight.getVelocity() * 60.0 / TICKS_PER_REV;
-            double avgRPM = (rpmL + rpmR) / 2.0;
-            telemetry.addData("RPM", String.format("L:%d R:%d Avg:%d", (int) rpmL, (int) rpmR, (int) avgRPM));
-            telemetry.addData("Target RPM", (int) activeTargetRPM);
-            telemetry.addData("RPM Error", String.format("%+d", (int)(activeTargetRPM - avgRPM)));
-            telemetry.addData("Power L/R", String.format("%.2f / %.2f", shooterLeft.getPower(), shooterRight.getPower()));
-            telemetry.addData("Hood Pos", String.format("%.3f", currentHoodPos));
-            telemetry.addData("Battery", String.format("%.1f V", voltageSensor.getVoltage()));
-            telemetry.update();
+            telemetry.update(); // Note: Shooter class also handles RPM telemetry internally
         }
 
         // Cleanup on stop
-        shooterLeft.setPower(0);
-        shooterRight.setPower(0);
+        shooter.setShooterOn(false);
+        shooter.updatePIDF(voltageSensor, telemetry); // Forces motors to 0
         middleTransfer.setPower(0);
         turret.stop();
         Gate.setPosition(GATE_CLOSED);
     }
 
-    // ── Shooter PIDF update — runs entire auto, never turns off ────────────
+    // ── Shooter Loop (Delegated to Shooter Class) ──────────────────────────
     private void updateShooter() {
-        double voltage = voltageSensor.getVoltage();
-        double powerL  = leftController.computePowerForTargetRPMWithVoltageCompensation(
-                activeTargetRPM, shooterLeft.getVelocity(), voltage, NOMINAL_VOLTAGE);
-        double powerR  = rightController.computePowerForTargetRPMWithVoltageCompensation(
-                activeTargetRPM, shooterRight.getVelocity(), voltage, NOMINAL_VOLTAGE);
-        shooterLeft.setPower(powerL);
-        shooterRight.setPower(powerR);
-
-        // Detect ball launch: velocity drop > 200 ticks/sec means a ball just fired
-        double avgVelocity = (shooterLeft.getVelocity() + shooterRight.getVelocity()) / 2.0;
-        double velocityDrop = lastAvgVelocity - avgVelocity;
-        if (velocityDrop >= LAUNCH_DROP_THRESHOLD && lastAvgVelocity > 0) {
-            currentHoodPos = Math.max(0.0, currentHoodPos - HOOD_DROP_PER_LAUNCH);
-            hoodServo1.setPosition(currentHoodPos);
-            hoodServo2.setPosition(currentHoodPos);
-        }
-        lastAvgVelocity = avgVelocity;
+        shooter.setTargetRPM(activeTargetRPM);
+        shooter.updatePIDF(voltageSensor, telemetry);
     }
 
     // ── State Machine ──────────────────────────────────────────────────────
-    // PATH: shoot → pickup2 → shoot → clear→pickFromClear → shoot → clear→pickFromClear → shoot → pickup1 → shoot → park
     private void updateStateMachine() {
         switch (state) {
 
-            // ── FIRST SHOOT CYCLE (TARGET_RPM_INITIAL) ────────────────────
-
+            // ── FIRST SHOOT CYCLE ────────────────────
             case 0:
                 activeTargetRPM = TARGET_RPM_INITIAL;
                 middleTransfer.setPower(1.0);
@@ -320,18 +246,18 @@ public class Red_Close_15_2 extends LinearOpMode {
                 setState(1);
                 break;
 
-            case 1: {
+            case 1:
                 double driveElapsed = actionTimer.getElapsedTimeSeconds();
                 double rampDuration = 1.0;
                 double t = Math.min(1.0, driveElapsed / rampDuration);
-                currentHoodPos = HOOD_POS_START - (t * HOOD_DROP_PER_LAUNCH);
-                hoodServo1.setPosition(currentHoodPos);
-                hoodServo2.setPosition(currentHoodPos);
+
+                // Starts at 0.5 (HOOD_SERVO_INIT) and drops down based on time
+                shooter.setHoodAnglePos(0.5 - (t * 0.02));
+
                 if (!follower.isBusy()) {
                     setState(2);
                 }
                 break;
-            }
 
             case 2:
                 if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME_1) {
@@ -344,7 +270,7 @@ public class Red_Close_15_2 extends LinearOpMode {
             case 3:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_1) {
                     Gate.setPosition(GATE_CLOSED);
-                    resetHood();
+                    shooter.setHoodAnglePos(0.5); // Reset Hood
                     follower.followPath(toPickup2Start, true);
                     middleTransfer.setPower(0);
                     setState(4);
@@ -352,7 +278,6 @@ public class Red_Close_15_2 extends LinearOpMode {
                 break;
 
             // ── RAPID INTAKE ──────────────────────────────────────────────
-
             case 4:
                 if (!follower.isBusy()) {
                     transferBlocker.setPosition(SERVO_HOME);
@@ -379,7 +304,6 @@ public class Red_Close_15_2 extends LinearOpMode {
                 break;
 
             // ── SECOND SHOOT CYCLE ────────────────────────────────────────
-
             case 7:
                 if (!follower.isBusy()) {
                     middleTransfer.setPower(0);
@@ -398,7 +322,7 @@ public class Red_Close_15_2 extends LinearOpMode {
             case 9:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_2) {
                     Gate.setPosition(GATE_CLOSED);
-                    resetHood();
+                    shooter.setHoodAnglePos(0.5);
                     follower.followPath(toClear, true);
                     middleTransfer.setPower(0);
                     setState(10);
@@ -406,15 +330,12 @@ public class Red_Close_15_2 extends LinearOpMode {
                 break;
 
             // ── THIRD PICKUP CYCLE ────────────────────────────────────────
-
-            // STATE 10: Wait to arrive at clearPose
             case 10:
                 if (!follower.isBusy()) {
                     setState(11);
                 }
                 break;
 
-            // STATE 11: Wait at gate, then start intake and drive to pickFromClearPose
             case 11:
                 if (actionTimer.getElapsedTimeSeconds() >= WAIT_AT_GATE) {
                     middleTransfer.setPower(1.0);
@@ -423,14 +344,12 @@ public class Red_Close_15_2 extends LinearOpMode {
                 }
                 break;
 
-            // STATE 12: Wait to arrive at pickFromClearPose (intake running)
             case 12:
                 if (!follower.isBusy()) {
                     setState(13);
                 }
                 break;
 
-            // STATE 13: Wait at pickFromClearPose, then stop intake and drive to shoot pose
             case 13:
                 if (actionTimer.getElapsedTimeSeconds() >= PICK_FROM_CLEAR_SECONDS) {
                     activeTargetRPM = TARGET_RPM_FUTURE;
@@ -439,7 +358,6 @@ public class Red_Close_15_2 extends LinearOpMode {
                 }
                 break;
 
-            // STATE 14: Wait to arrive at shoot pose
             case 14:
                 if (!follower.isBusy()) {
                     middleTransfer.setPower(0);
@@ -447,7 +365,6 @@ public class Red_Close_15_2 extends LinearOpMode {
                 }
                 break;
 
-            // STATE 15: Spinup hold, then open gate and start transfer
             case 15:
                 if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME_2) {
                     Gate.setPosition(GATE_OPEN);
@@ -456,11 +373,10 @@ public class Red_Close_15_2 extends LinearOpMode {
                 }
                 break;
 
-            // STATE 16: Shoot, then close gate, reset hood, drive to fourth pickup
             case 16:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_2) {
                     Gate.setPosition(GATE_CLOSED);
-                    resetHood();
+                    shooter.setHoodAnglePos(0.5);
                     follower.followPath(toClear, true);
                     middleTransfer.setPower(0);
                     setState(17);
@@ -468,15 +384,12 @@ public class Red_Close_15_2 extends LinearOpMode {
                 break;
 
             // ── FOURTH PICKUP CYCLE ───────────────────────────────────────
-
-            // STATE 17: Wait to arrive at clearPose
             case 17:
                 if (!follower.isBusy()) {
                     setState(18);
                 }
                 break;
 
-            // STATE 18: Wait at gate, then start intake and drive to pickFromClearPose
             case 18:
                 if (actionTimer.getElapsedTimeSeconds() >= WAIT_AT_GATE) {
                     middleTransfer.setPower(1.0);
@@ -485,14 +398,12 @@ public class Red_Close_15_2 extends LinearOpMode {
                 }
                 break;
 
-            // STATE 19: Wait to arrive at pickFromClearPose (intake running)
             case 19:
                 if (!follower.isBusy()) {
                     setState(20);
                 }
                 break;
 
-            // STATE 20: Wait at pickFromClearPose, then stop intake and drive to shoot pose
             case 20:
                 if (actionTimer.getElapsedTimeSeconds() >= PICK_FROM_CLEAR_SECONDS) {
                     activeTargetRPM = TARGET_RPM_FUTURE;
@@ -501,7 +412,6 @@ public class Red_Close_15_2 extends LinearOpMode {
                 }
                 break;
 
-            // STATE 21: Wait to arrive at shoot pose
             case 21:
                 if (!follower.isBusy()) {
                     middleTransfer.setPower(0);
@@ -509,7 +419,6 @@ public class Red_Close_15_2 extends LinearOpMode {
                 }
                 break;
 
-            // STATE 22: Spinup hold, then open gate and start transfer
             case 22:
                 if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME_2) {
                     Gate.setPosition(GATE_OPEN);
@@ -518,27 +427,23 @@ public class Red_Close_15_2 extends LinearOpMode {
                 }
                 break;
 
-            // STATE 23: Shoot, then close gate, reset hood, drive to pre-sweep pose
             case 23:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_2) {
                     Gate.setPosition(GATE_CLOSED);
-                    resetHood();
+                    shooter.setHoodAnglePos(0.5);
                     follower.followPath(toPickup1Start, true);
                     middleTransfer.setPower(0);
                     setState(24);
                 }
                 break;
 
-            // ── FIFTH PICKUP CYCLE (sweep along y=84) ─────────────────────
-
-            // STATE 24: Wait to arrive at preSweepPose
+            // ── FIFTH PICKUP CYCLE ─────────────────────
             case 24:
                 if (!follower.isBusy()) {
                     setState(25);
                 }
                 break;
 
-            // STATE 25: Turn on intake, drive sweep to (122, 84)
             case 25:
                 middleTransfer.setPower(1.0);
                 follower.setMaxPower(INTAKE_SPEED);
@@ -547,7 +452,6 @@ public class Red_Close_15_2 extends LinearOpMode {
                 setState(26);
                 break;
 
-            // STATE 26: Wait to arrive at sweepEndPose, then drive to shoot pose (intake stays on)
             case 26:
                 if (!follower.isBusy()) {
                     follower.followPath(toShootFromPickup1, true);
@@ -555,7 +459,6 @@ public class Red_Close_15_2 extends LinearOpMode {
                 }
                 break;
 
-            // STATE 27: Wait to arrive at shoot pose, then stop intake
             case 27:
                 if (!follower.isBusy()) {
                     middleTransfer.setPower(0);
@@ -563,7 +466,6 @@ public class Red_Close_15_2 extends LinearOpMode {
                 }
                 break;
 
-            // STATE 28: Spinup hold, then open gate and start transfer
             case 28:
                 if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME_2) {
                     Gate.setPosition(GATE_OPEN);
@@ -572,20 +474,17 @@ public class Red_Close_15_2 extends LinearOpMode {
                 }
                 break;
 
-            // STATE 29: Shoot, then close gate, reset hood, drive to park
             case 29:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_2) {
                     Gate.setPosition(GATE_CLOSED);
                     middleTransfer.setPower(0);
-                    resetHood();
+                    shooter.setHoodAnglePos(0.5);
                     follower.followPath(toPark, true);
                     setState(30);
                 }
                 break;
 
             // ── PARK ─────────────────────────────────────────────────────
-
-            // STATE 30: Wait to arrive at parkPose, then stop
             case 30:
                 if (!follower.isBusy()) {
                     setState(-1);
@@ -593,15 +492,9 @@ public class Red_Close_15_2 extends LinearOpMode {
                 break;
 
             default:
-                // Done — shooter keeps spinning, updateShooter() handles PIDF
+                // Done — Shooter class keeps spinning via updatePIDF
                 break;
         }
-    }
-
-    private void resetHood() {
-        currentHoodPos = HOOD_POS_START;
-        hoodServo1.setPosition(currentHoodPos);
-        hoodServo2.setPosition(currentHoodPos);
     }
 
     private void setState(int newState) {

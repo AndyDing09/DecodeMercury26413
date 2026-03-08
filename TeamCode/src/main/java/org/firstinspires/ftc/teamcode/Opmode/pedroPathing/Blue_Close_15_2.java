@@ -50,8 +50,8 @@ public class Blue_Close_15_2 extends LinearOpMode {
     // =======================
     private static final double TICKS_PER_REV      = 28.0;
     private static final double NOMINAL_VOLTAGE    = 12.0;
-    private static final double TARGET_RPM_INITIAL = 3200;
-    private static final double TARGET_RPM_FUTURE  = 3200;
+    private static final double TARGET_RPM_INITIAL = 3400;
+    private static final double TARGET_RPM_FUTURE  = 3400;
 
     // PIDF gains — matched to shooterspeedTest (the working tuned values)
     private static final double kP_shooter = 0.0064;

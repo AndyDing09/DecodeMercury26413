@@ -38,8 +38,8 @@ public class TurretBlue {
     private static final double MAX_POWER = 0.90;
 
     // ---------- Hardware Limits ----------
-    private static final int LEFT_LIMIT  = -435;
-    private static final int RIGHT_LIMIT = 380;
+    private static final int LEFT_LIMIT  = -350;
+    private static final int RIGHT_LIMIT = 300;
 
     // ---------- Tracking State ----------
     private static final int LOSS_DEBOUNCE_FRAMES = 8;

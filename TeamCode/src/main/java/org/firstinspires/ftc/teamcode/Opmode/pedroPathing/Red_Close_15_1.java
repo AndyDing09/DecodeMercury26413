@@ -62,7 +62,7 @@ public class Red_Close_15_1 extends LinearOpMode {
     // =======================
     // Gate Positions
     // =======================
-    private static final double GATE_CLOSED = 0.5;
+    private static final double GATE_CLOSED = 0.09;
     private static final double GATE_OPEN   = 0.27;
 
     // =======================
@@ -121,8 +121,8 @@ public class Red_Close_15_1 extends LinearOpMode {
     private final Timer actionTimer = new Timer();
     private int state = 0;
 
-    private static final double SPINUP_TIME_1 = 0.275;
-    private static final double SPINUP_TIME_2 = 0.475;
+    private static final double SPINUP_TIME_1 = 2;
+    private static final double SPINUP_TIME_2 = 1;
     private static final double SHOOT_TIME_1  = 0.45;
     private static final double SHOOT_TIME_2  = 0.65;
 
@@ -152,8 +152,8 @@ public class Red_Close_15_1 extends LinearOpMode {
         shooterRight = hardwareMap.get(DcMotorEx.class, "shooterRight");
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
 
-        shooterLeft.setDirection(DcMotorSimple.Direction.FORWARD);
-        shooterRight.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooterLeft.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooterRight.setDirection(DcMotorSimple.Direction.FORWARD);
         shooterLeft.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         shooterRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         shooterLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
@@ -336,7 +336,7 @@ public class Red_Close_15_1 extends LinearOpMode {
 
             case 1: {
                 double driveElapsed = actionTimer.getElapsedTimeSeconds();
-                double rampDuration = 1.0;
+                double rampDuration = 1.5;
                 double t = Math.min(1.0, driveElapsed / rampDuration);
                 currentHoodPos = HOOD_POS_START - (t * HOOD_DROP_PER_LAUNCH);
                 hoodServo1.setPosition(currentHoodPos);

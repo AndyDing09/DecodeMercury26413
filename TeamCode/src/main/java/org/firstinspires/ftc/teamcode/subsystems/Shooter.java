@@ -24,13 +24,16 @@ public class Shooter {
     public enum OuttakeState { IDLE, RAMPING, GATE_OPEN, TRANSFERRING }
     private OuttakeState outtakeState = OuttakeState.IDLE;
     private long outtakeStateStartTime = 0;
-    private static final long RAMP_DELAY_MS = 2000;
+    private static final long INTAKE_DELAY_MS = 500;
+    private static final long RPM_DROP_DELAY_MS = 5000;
+    private static final double CRUISE_RPM = 2000;
 
     private static final double TICKS_PER_REV   = 28.0;
     private static final double NOMINAL_VOLTAGE  = 12.0;
-    private static final double MAX_SHOOTER_RPM  = 4500;
+    private static final double LEFT_BUMPER_RPM  = 4500;
+    private static final double RIGHT_BUMPER_RPM = 3400;
 
-    private static final double HOOD_SERVO_INIT = 0.5;
+    private static final double HOOD_SERVO_INIT = 0.7;
     private static final double MIN_HOOD_SERVO  = 0.0;
     private static final double MAX_HOOD_SERVO  = 1.0;
     private static final double HOOD_ANGLE_STEP = 0.05;
@@ -56,10 +59,12 @@ public class Shooter {
     private PIDFMotorController rightController;
 
     private double lastShooterVelocity = 0;
-    private static final double LAUNCH_DROP_THRESHOLD = 200.0;
-    private static final double HOOD_DIP_AMOUNT = 0.05;
+    private static final double LAUNCH_DROP_THRESHOLD = 50.0; // ~107 RPM drop between loops
+    private static final double HOOD_DIP_AMOUNT = 0.1;
     private double cumulativeHoodDip = 0;
     private double lastHoodServoPos = -1;
+    private double initialRPM = 0; // the high RPM before dropping to CRUISE_RPM
+    private boolean intakeStarted = false;
 
     // Odometry-based auto-calc
     private boolean autoCalcEnabled = false;
@@ -91,34 +96,48 @@ public class Shooter {
     }
 
     public void handleHoodInput(boolean yPressed, boolean xPressed) {
-        if (yPressed && !lastG1Y) currentHoodAnglePos = Math.min(MAX_HOOD_SERVO, currentHoodAnglePos + HOOD_ANGLE_STEP);
-        if (xPressed && !lastG1X) currentHoodAnglePos = Math.max(MIN_HOOD_SERVO, currentHoodAnglePos - HOOD_ANGLE_STEP);
+        boolean changed = false;
+        if (yPressed && !lastG1Y) { currentHoodAnglePos = Math.min(MAX_HOOD_SERVO, currentHoodAnglePos + HOOD_ANGLE_STEP); changed = true; }
+        if (xPressed && !lastG1X) { currentHoodAnglePos = Math.max(MIN_HOOD_SERVO, currentHoodAnglePos - HOOD_ANGLE_STEP); changed = true; }
         lastG1Y = yPressed;
         lastG1X = xPressed;
-        updateHoodServos(currentHoodAnglePos);
+        if (changed) {
+            cumulativeHoodDip = 0;
+            updateHoodServos(currentHoodAnglePos);
+        }
     }
 
     public void handleShooterInput(boolean leftBumper, boolean rightBumper, boolean triangle, Intake intake) {
         if (triangle && !lastTriangle) {
-            shooterOn     = false;
-            shooterKilled = true;
-            targetRPM     = 0;
-            outtakeState  = OuttakeState.IDLE;
-            cumulativeHoodDip = 0;
             gate.setPosition(GATE_CLOSED);
-            intake.stopIfNotIntaking();
+            outtakeState = OuttakeState.IDLE;
+            cumulativeHoodDip = 0;
+            currentHoodAnglePos = HOOD_SERVO_INIT;
+            updateHoodServos(currentHoodAnglePos);
         }
         if (leftBumper && !lastLeftBumper) {
             shooterOn     = true;
             shooterKilled = false;
-            targetRPM     = MAX_SHOOTER_RPM;
+            initialRPM    = LEFT_BUMPER_RPM;
+            targetRPM     = LEFT_BUMPER_RPM;
+            cumulativeHoodDip = 0;
+            currentHoodAnglePos = HOOD_SERVO_INIT;
+            updateHoodServos(currentHoodAnglePos);
+            gate.setPosition(GATE_OPEN);
+            intakeStarted = false;
             outtakeState        = OuttakeState.RAMPING;
             outtakeStateStartTime = System.currentTimeMillis();
         }
         if (rightBumper && !lastRightBumper) {
             shooterOn     = true;
             shooterKilled = false;
-            targetRPM     = 3400;
+            initialRPM    = RIGHT_BUMPER_RPM;
+            targetRPM     = RIGHT_BUMPER_RPM;
+            cumulativeHoodDip = 0;
+            currentHoodAnglePos = HOOD_SERVO_INIT;
+            updateHoodServos(currentHoodAnglePos);
+            gate.setPosition(GATE_OPEN);
+            intakeStarted = false;
             outtakeState        = OuttakeState.RAMPING;
             outtakeStateStartTime = System.currentTimeMillis();
         }
@@ -128,22 +147,20 @@ public class Shooter {
     }
 
     public void updateOuttakeSequence(Intake intake, VoltageSensor voltageSensor) {
+        if (outtakeState == OuttakeState.IDLE) return;
+
         long elapsed = System.currentTimeMillis() - outtakeStateStartTime;
-        switch (outtakeState) {
-            case RAMPING:
-                if (elapsed >= RAMP_DELAY_MS) {
-                    cumulativeHoodDip = 0;
-                    gate.setPosition(GATE_OPEN);
-                    intake.runTransfer(voltageSensor);
-                    outtakeState = OuttakeState.GATE_OPEN;
-                    outtakeStateStartTime = System.currentTimeMillis();
-                }
-                break;
-            case GATE_OPEN:
-            case TRANSFERRING:
-            case IDLE:
-            default:
-                break;
+
+        // 0.5s after bumper: turn on intake
+        if (!intakeStarted && elapsed >= INTAKE_DELAY_MS) {
+            intake.runTransfer(voltageSensor);
+            intakeStarted = true;
+            outtakeState = OuttakeState.GATE_OPEN;
+        }
+
+        // 5s after bumper: drop RPM to cruise
+        if (elapsed >= RPM_DROP_DELAY_MS && targetRPM > CRUISE_RPM) {
+            targetRPM = CRUISE_RPM;
         }
     }
 
@@ -177,11 +194,7 @@ public class Shooter {
 
         double velocityDrop = lastShooterVelocity - avgVelocity;
         if (velocityDrop > LAUNCH_DROP_THRESHOLD && lastShooterVelocity > 0) {
-            // Ball launched — dip hood by 0.05 each drop
             cumulativeHoodDip += HOOD_DIP_AMOUNT;
-        } else if (cumulativeHoodDip > 0) {
-            // Velocity stable again — reset hood back to starting position
-            cumulativeHoodDip = 0;
         }
         lastShooterVelocity = avgVelocity;
 
@@ -197,6 +210,8 @@ public class Shooter {
         telemetry.addData("Actual RPM", String.format("L:%d  R:%d  Avg:%d", (int) rpmL, (int) rpmR, (int) avgRPM));
         telemetry.addData("RPM Error", String.format("%+d (%.1f%%)", (int) rpmError, (rpmError / Math.max(targetRPM, 1)) * 100));
         telemetry.addData("Shooter Power", String.format("%.2f / %.2f", powerLeft, powerRight));
+        telemetry.addData("Hood", String.format("base=%.2f  dip=%.2f  effective=%.2f", currentHoodAnglePos, cumulativeHoodDip, effectiveHood));
+        telemetry.addData("Vel Drop", String.format("%.1f ticks/s (threshold: %.1f)", velocityDrop, LAUNCH_DROP_THRESHOLD));
         telemetry.addData("Battery",  String.format("%.1f V", currentVoltage));
     }
 
