@@ -15,6 +15,7 @@ import org.firstinspires.ftc.teamcode.testing.LauncherSolution;
 import org.firstinspires.ftc.teamcode.testing.MathLib;
 import org.firstinspires.ftc.teamcode.testing.PIDFMotorController;
 
+
 public class Shooter {
     private final DcMotorEx shooterLeft, shooterRight;
     private final Servo gate;
@@ -27,7 +28,7 @@ public class Shooter {
 
     private static final double TICKS_PER_REV   = 28.0;
     private static final double NOMINAL_VOLTAGE  = 12.0;
-    private static final double MAX_SHOOTER_RPM  = 3000.0;
+    private static final double MAX_SHOOTER_RPM  = 4500;
 
     private static final double HOOD_SERVO_INIT = 0.5;
     private static final double MIN_HOOD_SERVO  = 0.0;
@@ -64,7 +65,8 @@ public class Shooter {
     private boolean autoCalcEnabled = false;
     private double autoCalcRPM = 0;
     private double autoCalcServoPos = HOOD_SERVO_INIT;
-
+    public void setShooterOn(boolean on) { this.shooterOn = on; }
+    public Servo getGate() { return gate; }
     public Shooter(HardwareMap hardwareMap) {
         shooterLeft  = hardwareMap.get(DcMotorEx.class, "shooterLeft");
         shooterRight = hardwareMap.get(DcMotorEx.class, "shooterRight");
@@ -116,7 +118,7 @@ public class Shooter {
         if (rightBumper && !lastRightBumper) {
             shooterOn     = true;
             shooterKilled = false;
-            targetRPM     = 3000;
+            targetRPM     = 3400;
             outtakeState        = OuttakeState.RAMPING;
             outtakeStateStartTime = System.currentTimeMillis();
         }
