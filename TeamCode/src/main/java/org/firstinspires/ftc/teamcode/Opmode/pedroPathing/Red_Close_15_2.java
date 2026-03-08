@@ -88,7 +88,7 @@ public class Red_Close_15_2 extends LinearOpMode {
     private final Pose pickupPose2       = new Pose(102, 60,  Math.toRadians(0));
     private final Pose Intake2End        = new Pose(134, 60,  Math.toRadians(0));
     private final Pose clearPose         = new Pose(129, 68,  Math.toRadians(0));
-    private final Pose pickFromClearPose = new Pose(137, 59,  Math.toRadians(45));
+    private final Pose pickFromClearPose = new Pose(132, 66,  Math.toRadians(45));
     private final Pose pickupPose1       = new Pose(102, 84,  Math.toRadians(0));
     private final Pose Intake1End        = new Pose(128, 84,  Math.toRadians(0));
     private final Pose intermediatePose1 = new Pose(108, 60,  Math.toRadians(22.5));
