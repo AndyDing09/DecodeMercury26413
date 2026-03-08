@@ -17,6 +17,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
+import org.firstinspires.ftc.teamcode.subsystems.Turret;
 import org.firstinspires.ftc.teamcode.testing.PIDFMotorController;
 
 @Autonomous(name = "RC2", group = "Auto")
@@ -33,7 +34,11 @@ public class Blue_Close_15_2 extends LinearOpMode {
     private Servo transferBlocker;
     private Servo hoodServo1, hoodServo2;
 
-    // Hood angle — starts at 0.7, drops 0.02 per 200 ticks of velocity drop (ball launch)
+    private Turret turret;
+    private com.qualcomm.robotcore.util.ElapsedTime matchTimer = new com.qualcomm.robotcore.util.ElapsedTime();
+    private static final double TURRET_START_DELAY = 2.0;
+
+    // Hood angle — starts at 0.5, drops 0.02 per 300 ticks of velocity drop (ball launch)
     private static final double HOOD_POS_START = 0.5;
     private static final double HOOD_DROP_PER_LAUNCH = 0.02;
     private static final double LAUNCH_DROP_THRESHOLD = 300.0;  // ticks/sec velocity drop = ball fired
@@ -48,10 +53,11 @@ public class Blue_Close_15_2 extends LinearOpMode {
     private static final double TARGET_RPM_INITIAL = 3200;
     private static final double TARGET_RPM_FUTURE  = 3200;
 
-    // Dual gain sets — match Shooter.java / ShooterConstants
-    private static final double kP_low  = 0.0012, kI_low  = 0.0003, kD_low  = 0.00008, kF_low  = 0.00045;
-    private static final double kP_high = 0.0015, kI_high = 0.0004, kD_high = 0.00010, kF_high = 0.00045;
-    private static final double RPM_GAIN_THRESHOLD = 3600.0;
+    // PIDF gains — matched to shooterspeedTest (the working tuned values)
+    private static final double kP_shooter = 0.0064;
+    private static final double kI_shooter = 0.00001;
+    private static final double kD_shooter = 0.0;
+    private static final double kF_shooter = 0.0007;
 
     private PIDFMotorController leftController;
     private PIDFMotorController rightController;
@@ -147,8 +153,8 @@ public class Blue_Close_15_2 extends LinearOpMode {
         shooterRight = hardwareMap.get(DcMotorEx.class, "shooterRight");
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
 
-        shooterLeft.setDirection(DcMotorSimple.Direction.FORWARD);
-        shooterRight.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooterLeft.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooterRight.setDirection(DcMotorSimple.Direction.FORWARD);
         shooterLeft.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         shooterRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         shooterLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
@@ -165,9 +171,12 @@ public class Blue_Close_15_2 extends LinearOpMode {
         transferBlocker = hardwareMap.servo.get("transferBlocker");
         transferBlocker.setPosition(SERVO_HOME);
 
-        // ── PIDF Controllers (init with high gains since target is 3700 RPM) ──
-        leftController  = new PIDFMotorController(kP_high, kI_high, kD_high, kF_high, TICKS_PER_REV);
-        rightController = new PIDFMotorController(kP_high, kI_high, kD_high, kF_high, TICKS_PER_REV);
+        // ── Turret Init ──
+        turret = new Turret(hardwareMap);
+
+        // ── PIDF Controllers (matched to shooterspeedTest gains) ──
+        leftController  = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_shooter, TICKS_PER_REV);
+        rightController = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_shooter, TICKS_PER_REV);
 
         // ── Pedro Init ─────────────────────────────────────────────────────
         follower = Constants.createFollower(hardwareMap);
@@ -241,11 +250,15 @@ public class Blue_Close_15_2 extends LinearOpMode {
         leftController.reset();
         rightController.reset();
 
+        matchTimer.reset();
         setState(0);
 
         while (opModeIsActive()) {
             follower.update();
             updateShooter();
+            if (matchTimer.seconds() >= TURRET_START_DELAY) {
+                turret.update();
+            }
             updateStateMachine();
 
             telemetry.addData("State", state);
@@ -267,20 +280,12 @@ public class Blue_Close_15_2 extends LinearOpMode {
         shooterLeft.setPower(0);
         shooterRight.setPower(0);
         middleTransfer.setPower(0);
+        turret.stop();
         Gate.setPosition(GATE_CLOSED);
     }
 
     // ── Shooter PIDF update — runs entire auto, never turns off ────────────
     private void updateShooter() {
-        // Switch gains based on RPM (same as Shooter.java in TeleOp)
-        if (activeTargetRPM >= RPM_GAIN_THRESHOLD) {
-            leftController.setTunings(kP_high, kI_high, kD_high, kF_high);
-            rightController.setTunings(kP_high, kI_high, kD_high, kF_high);
-        } else {
-            leftController.setTunings(kP_low, kI_low, kD_low, kF_low);
-            rightController.setTunings(kP_low, kI_low, kD_low, kF_low);
-        }
-
         double voltage = voltageSensor.getVoltage();
         double powerL  = leftController.computePowerForTargetRPMWithVoltageCompensation(
                 activeTargetRPM, shooterLeft.getVelocity(), voltage, NOMINAL_VOLTAGE);

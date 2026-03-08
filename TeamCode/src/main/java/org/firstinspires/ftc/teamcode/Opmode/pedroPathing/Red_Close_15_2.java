@@ -16,10 +16,8 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
-import com.qualcomm.hardware.limelightvision.Limelight3A;
-import com.qualcomm.hardware.limelightvision.LLResult;
-
 import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
+import org.firstinspires.ftc.teamcode.subsystems.TurretRed;
 import org.firstinspires.ftc.teamcode.testing.PIDFMotorController;
 
 @Autonomous(name = "RC2", group = "Auto")
@@ -36,31 +34,11 @@ public class Red_Close_15_2 extends LinearOpMode {
     private Servo transferBlocker;
     private Servo hoodServo1, hoodServo2;
 
-    // =======================
-    // Turret
-    // =======================
-    private DcMotor turretMotor;
-    private Limelight3A limelight;
-    private com.qualcomm.robotcore.util.ElapsedTime turretTimer = new com.qualcomm.robotcore.util.ElapsedTime();
+    private TurretRed turret;
+    private com.qualcomm.robotcore.util.ElapsedTime matchTimer = new com.qualcomm.robotcore.util.ElapsedTime();
+    private static final double TURRET_START_DELAY = 2.0;
 
-    private static final double NEAR_kP = 0.030;
-    private static final double NEAR_kD = 0.002;
-    private static final double NEAR_kF = 0.008;
-    private static final double FAR_kP  = 0.015;
-    private static final double FAR_kD  = 0.004;
-    private static final double FAR_kF  = 0.008;
-    private static final double AREA_THRESHOLD = 1.5;
-    private static final double TURRET_DEADZONE = 3.0;
-    private static final double TURRET_MAX_POWER = 0.90;
-    private static final int TURRET_LEFT_LIMIT  = -435;
-    private static final int TURRET_RIGHT_LIMIT =  415;
-    private static final int TURRET_LOSS_DEBOUNCE = 8;
-
-    private int turretFramesWithout = 0;
-    private double turretLastTx = 0;
-    private boolean turretWasTracking = false;
-
-    // Hood angle — starts at 0.7, drops 0.02 per 200 ticks of velocity drop (ball launch)
+    // Hood angle — starts at 0.5, drops 0.02 per 300 ticks of velocity drop (ball launch)
     private static final double HOOD_POS_START = 0.5;
     private static final double HOOD_DROP_PER_LAUNCH = 0.02;
     private static final double LAUNCH_DROP_THRESHOLD = 300.0;  // ticks/sec velocity drop = ball fired
@@ -75,10 +53,11 @@ public class Red_Close_15_2 extends LinearOpMode {
     private static final double TARGET_RPM_INITIAL = 3200;
     private static final double TARGET_RPM_FUTURE  = 3200;
 
-    // Dual gain sets — match Shooter.java / ShooterConstants
-    private static final double kP_low  = 0.0012, kI_low  = 0.0003, kD_low  = 0.00008, kF_low  = 0.00045;
-    private static final double kP_high = 0.0015, kI_high = 0.0004, kD_high = 0.00010, kF_high = 0.00045;
-    private static final double RPM_GAIN_THRESHOLD = 3600.0;
+    // PIDF gains — matched to shooterspeedTest (the working tuned values)
+    private static final double kP_shooter = 0.0064;
+    private static final double kI_shooter = 0.00001;
+    private static final double kD_shooter = 0.0;
+    private static final double kF_shooter = 0.0007;
 
     private PIDFMotorController leftController;
     private PIDFMotorController rightController;
@@ -192,20 +171,12 @@ public class Red_Close_15_2 extends LinearOpMode {
         transferBlocker = hardwareMap.servo.get("transferBlocker");
         transferBlocker.setPosition(SERVO_HOME);
 
-        // ── Turret Init (face forward, encoder = 0) ──
-        turretMotor = hardwareMap.get(DcMotor.class, "turretMotor");
-        turretMotor.setDirection(DcMotorSimple.Direction.FORWARD);
-        turretMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        turretMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        turretMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        // ── Turret Init ──
+        turret = new TurretRed(hardwareMap);
 
-        limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.pipelineSwitch(0);
-        limelight.start();
-
-        // ── PIDF Controllers (init with high gains since target is 3700 RPM) ──
-        leftController  = new PIDFMotorController(kP_high, kI_high, kD_high, kF_high, TICKS_PER_REV);
-        rightController = new PIDFMotorController(kP_high, kI_high, kD_high, kF_high, TICKS_PER_REV);
+        // ── PIDF Controllers (matched to shooterspeedTest gains) ──
+        leftController  = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_shooter, TICKS_PER_REV);
+        rightController = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_shooter, TICKS_PER_REV);
 
         // ── Pedro Init ─────────────────────────────────────────────────────
         follower = Constants.createFollower(hardwareMap);
@@ -279,12 +250,15 @@ public class Red_Close_15_2 extends LinearOpMode {
         leftController.reset();
         rightController.reset();
 
+        matchTimer.reset();
         setState(0);
 
         while (opModeIsActive()) {
             follower.update();
             updateShooter();
-            updateTurret();
+            if (matchTimer.seconds() >= TURRET_START_DELAY) {
+                turret.update();
+            }
             updateStateMachine();
 
             telemetry.addData("State", state);
@@ -306,22 +280,12 @@ public class Red_Close_15_2 extends LinearOpMode {
         shooterLeft.setPower(0);
         shooterRight.setPower(0);
         middleTransfer.setPower(0);
-        turretMotor.setPower(0);
-        limelight.stop();
+        turret.stop();
         Gate.setPosition(GATE_CLOSED);
     }
 
     // ── Shooter PIDF update — runs entire auto, never turns off ────────────
     private void updateShooter() {
-        // Switch gains based on RPM (same as Shooter.java in TeleOp)
-        if (activeTargetRPM >= RPM_GAIN_THRESHOLD) {
-            leftController.setTunings(kP_high, kI_high, kD_high, kF_high);
-            rightController.setTunings(kP_high, kI_high, kD_high, kF_high);
-        } else {
-            leftController.setTunings(kP_low, kI_low, kD_low, kF_low);
-            rightController.setTunings(kP_low, kI_low, kD_low, kF_low);
-        }
-
         double voltage = voltageSensor.getVoltage();
         double powerL  = leftController.computePowerForTargetRPMWithVoltageCompensation(
                 activeTargetRPM, shooterLeft.getVelocity(), voltage, NOMINAL_VOLTAGE);
@@ -339,55 +303,6 @@ public class Red_Close_15_2 extends LinearOpMode {
             hoodServo2.setPosition(currentHoodPos);
         }
         lastAvgVelocity = avgVelocity;
-    }
-
-    // ── Turret tracking — track only, no search sweep ─────────────────────
-    private void updateTurret() {
-        double dt = Math.max(0.001, turretTimer.seconds());
-        turretTimer.reset();
-
-        LLResult result = limelight.getLatestResult();
-        boolean hasTarget = result != null && result.isValid();
-        int currentPos = turretMotor.getCurrentPosition();
-        double outputPower = 0;
-
-        if (hasTarget) {
-            double tx = result.getTx();
-            double ta = result.getTa();
-
-            // Gain scheduling: near vs far
-            boolean isFar = ta < AREA_THRESHOLD;
-            double active_kP = isFar ? FAR_kP : NEAR_kP;
-            double active_kD = isFar ? FAR_kD : NEAR_kD;
-            double active_kF = isFar ? FAR_kF : NEAR_kF;
-
-            double derivative = turretWasTracking ? (tx - turretLastTx) / dt : 0;
-
-            turretFramesWithout = 0;
-            turretWasTracking = true;
-            turretLastTx = tx;
-
-            if (Math.abs(tx) > TURRET_DEADZONE) {
-                outputPower = (active_kP * tx) + (active_kD * derivative);
-
-                if (Math.abs(outputPower) > 0.001 && Math.abs(outputPower) < active_kF) {
-                    outputPower = Math.signum(outputPower) * active_kF;
-                }
-            }
-        } else if (turretFramesWithout < TURRET_LOSS_DEBOUNCE) {
-            // Hold still during debounce
-            turretFramesWithout++;
-        } else {
-            // No target, no search — just hold position (BRAKE mode handles it)
-            turretWasTracking = false;
-        }
-
-        // Safety limits
-        outputPower = Math.max(-TURRET_MAX_POWER, Math.min(TURRET_MAX_POWER, outputPower));
-        if (currentPos <= TURRET_LEFT_LIMIT  && outputPower > 0) outputPower = 0;
-        if (currentPos >= TURRET_RIGHT_LIMIT && outputPower < 0) outputPower = 0;
-
-        turretMotor.setPower(outputPower);
     }
 
     // ── State Machine ──────────────────────────────────────────────────────
