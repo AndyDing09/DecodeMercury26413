@@ -59,8 +59,8 @@ public class shooterspeedTest extends LinearOpMode {
         middleTransfer = hardwareMap.get(DcMotor.class, "middleTransfer");
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
 
-        shooterLeft.setDirection(DcMotorSimple.Direction.FORWARD);
-        shooterRight.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooterLeft.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooterRight.setDirection(DcMotorSimple.Direction.FORWARD);
 
         // We use RUN_WITHOUT_ENCODER so we can feed it raw power from our custom PIDF math,
         // but the encoders will STILL track velocity for us to read.

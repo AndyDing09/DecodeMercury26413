@@ -75,9 +75,9 @@ public class Shooter {
         shooterLeft .setDirection(DcMotorSimple.Direction.REVERSE);
         shooterRight.setDirection(DcMotorSimple.Direction.FORWARD);
         shooterLeft .setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        shooterLeft .setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        shooterLeft .setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         shooterRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        shooterRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        shooterRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         gate.setPosition(GATE_CLOSED);
         updateHoodServos(currentHoodAnglePos);

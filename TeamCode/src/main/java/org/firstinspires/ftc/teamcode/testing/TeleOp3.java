@@ -10,9 +10,9 @@ import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
 import org.firstinspires.ftc.teamcode.subsystems.Shooter;
-import org.firstinspires.ftc.teamcode.testing.Turret;
+import org.firstinspires.ftc.teamcode.subsystems.Turret;
 
-@TeleOp(name = "TeleOp with Turret Tracking - Fixed", group = "TeleOp")
+@TeleOp(name = "TeleOp 3 - Odometry Shooter", group = "TeleOp")
 public class TeleOp3 extends LinearOpMode {
 
     private Drivetrain drivetrain;
@@ -26,18 +26,18 @@ public class TeleOp3 extends LinearOpMode {
 
     @Override
     public void runOpMode() {
+        // Initialize subsystems
         drivetrain    = new Drivetrain(hardwareMap);
         intake        = new Intake(hardwareMap);
         shooter       = new Shooter(hardwareMap);
         turret        = new Turret(hardwareMap);
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
 
+        // Initialize Pedro Pathing follower
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(START_POSE);
 
         telemetry.addLine("Ready. Auto-calc shooter from odometry.");
-        telemetry.addData("Start Pose", String.format("(%.0f, %.0f) hdg=%.0f",
-                START_POSE.getX(), START_POSE.getY(), Math.toDegrees(START_POSE.getHeading())));
         telemetry.update();
 
         waitForStart();
@@ -45,36 +45,47 @@ public class TeleOp3 extends LinearOpMode {
         shooter.initControllers();
 
         while (opModeIsActive()) {
-            // Update odometry (Pinpoint reads pods directly, no motor conflict)
+            // 1. Update odometry (Reads Pinpoint/Encoders)
             follower.update();
 
-            // Drive
+            // 2. Obtain Robot Location from Follower
+            Pose currentPose = follower.getPose();
+            double robotX = currentPose.getX();
+            double robotY = currentPose.getY();
+            double robotHeading = currentPose.getHeading(); // Returns radians
+
+            // 3. Drive Control
             drivetrain.drive(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
 
-            // Optional manual zeroing
-            if (gamepad2.a) {
-                turret.resetEncoder();
-            }
-
-            // Intake
+            // 4. Intake Control
             intake.update(gamepad1.circle, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
 
-            // Shooter input + outtake sequence
+            // 5. Shooter Control (Passing the Odometry data)
             shooter.handleShooterInput(gamepad1.left_bumper, gamepad1.right_bumper, gamepad1.triangle, intake);
             shooter.updateOuttakeSequence(intake, voltageSensor);
 
-            // Auto-calc RPM and hood from odometry (overrides when shooter is on)
+            // NOTE: You can pass the whole follower, OR update your shooter class to accept X and Y directly:
             shooter.updateFromOdometry(follower, telemetry);
             shooter.updatePIDF(voltageSensor, telemetry);
 
-            // --- Clean Turret Integration ---
-            // This single line handles all automated Limelight tracking, holding, and searching
+            // 6. Turret Control
+            if (gamepad2.a) {
+                turret.resetEncoder();
+            }
             turret.update();
 
-            // Telemetry
+            // 7. Telemetry output
             turret.addTelemetry(telemetry);
-            telemetry.addData("Shooter RPM", (int) shooter.getTargetRPM());
-            telemetry.addData("Hood Pos", String.format("%.3f", shooter.getHoodAnglePos()));
+
+            telemetry.addLine("===== ODOMETRY LOCATION =====");
+            telemetry.addData("Robot X", String.format("%.1f inches", robotX));
+            telemetry.addData("Robot Y", String.format("%.1f inches", robotY));
+            telemetry.addData("Robot Heading", String.format("%.1f deg", Math.toDegrees(robotHeading)));
+
+            telemetry.addLine("===== SHOOTER =====");
+            telemetry.addData("Target RPM", (int) shooter.getTargetRPM());
+            telemetry.addData("Target Hood Pos", String.format("%.3f", shooter.getHoodAnglePos()));
+
             telemetry.update();
         }
 

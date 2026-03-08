@@ -18,6 +18,7 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 import org.firstinspires.ftc.teamcode.testing.PIDFMotorController;
+import org.firstinspires.ftc.teamcode.subsystems.Turret;
 
 @Autonomous(name = "RC2", group = "Auto")
 public class Red_Close_15_2 extends LinearOpMode {
@@ -147,8 +148,8 @@ public class Red_Close_15_2 extends LinearOpMode {
         shooterRight = hardwareMap.get(DcMotorEx.class, "shooterRight");
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
 
-        shooterLeft.setDirection(DcMotorSimple.Direction.FORWARD);
-        shooterRight.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooterLeft.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooterRight.setDirection(DcMotorSimple.Direction.FORWARD);
         shooterLeft.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         shooterRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         shooterLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
