@@ -20,7 +20,7 @@ import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 import org.firstinspires.ftc.teamcode.testing.PIDFMotorController;
 
 @Autonomous(name = "RC2", group = "Auto")
-public class Red_Close_15_2 extends LinearOpMode {
+public class Blue_Close_15_2 extends LinearOpMode {
 
     // =======================
     // Hardware
@@ -82,17 +82,17 @@ public class Red_Close_15_2 extends LinearOpMode {
     // =======================
     // Poses
     // =======================
-    private final Pose startPose         = new Pose(124, 124, Math.toRadians(45));
-    private final Pose shootPose         = new Pose(96,  96,  Math.toRadians(45));
-    private final Pose pickupPose2       = new Pose(102, 60,  Math.toRadians(0));
-    private final Pose Intake2End        = new Pose(134, 60,  Math.toRadians(0));
-    private final Pose clearPose         = new Pose(129, 68,  Math.toRadians(0));
-    private final Pose pickFromClearPose = new Pose(132, 66,  Math.toRadians(45));
-    private final Pose pickupPose1       = new Pose(102, 84,  Math.toRadians(0));
-    private final Pose Intake1End        = new Pose(128, 84,  Math.toRadians(0));
-    private final Pose intermediatePose1 = new Pose(108, 60,  Math.toRadians(22.5));
-    private final Pose intermediatePose2 = new Pose(102, 66,  Math.toRadians(22.5));
-    private final Pose parkPose          = new Pose(118, 68,  Math.toRadians(0));
+    private final Pose startPose         = new Pose(20, 124, Math.toRadians(-45));
+    private final Pose shootPose         = new Pose(48,  96,  Math.toRadians(-45));
+    private final Pose pickupPose2       = new Pose(38, 60,  Math.toRadians(180));
+    private final Pose Intake2End        = new Pose(6, 60,  Math.toRadians(180));
+    private final Pose clearPose         = new Pose(15, 68,  Math.toRadians(0));
+    private final Pose pickFromClearPose = new Pose(12, 66,  Math.toRadians(-45));
+    private final Pose pickupPose1       = new Pose(38, 84,  Math.toRadians(180));
+    private final Pose Intake1End        = new Pose(16, 84,  Math.toRadians(180));
+    private final Pose intermediatePose1 = new Pose(32, 60,  Math.toRadians(-22.5));
+    private final Pose intermediatePose2 = new Pose(38, 66,  Math.toRadians(-22.5));
+    private final Pose parkPose          = new Pose(22, 68,  Math.toRadians(180));
 
     // =======================
     // PedroPathing
