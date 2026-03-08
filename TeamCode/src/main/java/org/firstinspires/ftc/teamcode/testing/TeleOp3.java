@@ -1,4 +1,4 @@
-/*package org.firstinspires.ftc.teamcode.Opmode;
+package org.firstinspires.ftc.teamcode.testing;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
@@ -10,10 +10,10 @@ import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
 import org.firstinspires.ftc.teamcode.subsystems.Shooter;
-import org.firstinspires.ftc.teamcode.subsystems.Turret;
+import org.firstinspires.ftc.teamcode.testing.Turret;
 
-@TeleOp(name = "TeleOp2", group = "TeleOp")
-public class TeleOp2 extends LinearOpMode {
+@TeleOp(name = "TeleOp with Turret Tracking - Fixed", group = "TeleOp")
+public class TeleOp3 extends LinearOpMode {
 
     private Drivetrain drivetrain;
     private Intake intake;
@@ -40,8 +40,6 @@ public class TeleOp2 extends LinearOpMode {
                 START_POSE.getX(), START_POSE.getY(), Math.toDegrees(START_POSE.getHeading())));
         telemetry.update();
 
-        turret.centerTurret(this);
-
         waitForStart();
 
         shooter.initControllers();
@@ -53,7 +51,10 @@ public class TeleOp2 extends LinearOpMode {
             // Drive
             drivetrain.drive(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
 
-            if (gamepad2.a) turret.resetEncoder(this);
+            // Optional manual zeroing
+            if (gamepad2.a) {
+                turret.resetEncoder();
+            }
 
             // Intake
             intake.update(gamepad1.circle, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
@@ -64,12 +65,11 @@ public class TeleOp2 extends LinearOpMode {
 
             // Auto-calc RPM and hood from odometry (overrides when shooter is on)
             shooter.updateFromOdometry(follower, telemetry);
-
             shooter.updatePIDF(voltageSensor, telemetry);
 
-            // Turret
-            turret.updateTuning(gamepad2.dpad_up, gamepad2.dpad_down, gamepad2.dpad_left, gamepad2.dpad_right, gamepad2.left_bumper);
-            turret.updateTracking(gamepad2.cross, gamepad2.right_stick_x, voltageSensor, telemetry, this);
+            // --- Clean Turret Integration ---
+            // This single line handles all automated Limelight tracking, holding, and searching
+            turret.update();
 
             // Telemetry
             turret.addTelemetry(telemetry);
@@ -81,4 +81,3 @@ public class TeleOp2 extends LinearOpMode {
         turret.stop();
     }
 }
-*/
