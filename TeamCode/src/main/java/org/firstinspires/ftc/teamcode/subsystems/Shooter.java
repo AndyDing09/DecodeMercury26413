@@ -47,11 +47,9 @@ public class Shooter {
     private boolean lastLeftBumper, lastRightBumper, lastTriangle;
 
     private double targetRPM = 0;
-    // PIDF gains — matched to shooterspeedTest (the working tuned values)
-    private double kP_shooter = 0.0064;
-    private double kI_shooter = 0.00001;
-    private double kD_shooter = 0.0;
-    private double kF_shooter = 0.0007;
+    private double kP_shooter, kI_shooter, kD_shooter, kF_shooter;
+    private final double kP_shooter_low  = 0.00002, kI_shooter_low  = 0.00003, kD_shooter_low  = 0.00008, kF_shooter_low  = 0.00040;
+    private final double kP_shooter_high = 0.00012, kI_shooter_high = 0.00003, kD_shooter_high = 0.00008, kF_shooter_high = 0.00045;
 
     private PIDFMotorController leftController;
     private PIDFMotorController rightController;
@@ -156,6 +154,16 @@ public class Shooter {
             lastShooterVelocity = 0;
             return;
         }
+
+        if (targetRPM >= 3600) {
+            kP_shooter = kP_shooter_high; kI_shooter = kI_shooter_high;
+            kD_shooter = kD_shooter_high; kF_shooter = kF_shooter_high;
+        } else {
+            kP_shooter = kP_shooter_low;  kI_shooter = kI_shooter_low;
+            kD_shooter = kD_shooter_low;  kF_shooter = kF_shooter_low;
+        }
+        if (leftController  != null) leftController .setTunings(kP_shooter, kI_shooter, kD_shooter, kF_shooter);
+        if (rightController != null) rightController.setTunings(kP_shooter, kI_shooter, kD_shooter, kF_shooter);
 
         double currentVoltage = voltageSensor.getVoltage();
         double avgVelocity = (shooterLeft.getVelocity() + shooterRight.getVelocity()) / 2.0;
