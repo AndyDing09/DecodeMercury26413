@@ -44,9 +44,9 @@ public class TeleOp_Maybe extends LinearOpMode {
     private static final double TURRET_MAX_POWER = 0.90;
 
     // ================= TURRET ENCODER LIMITS =================
-    // Turret stops commanding power at these limits but tracking math keeps running
-    private static final int TURRET_LEFT_LIMIT  = -200;
-    private static final int TURRET_RIGHT_LIMIT = 200;
+    // Widened to allow ~100 degrees of range each direction (at 5 ticks/deg)
+    private static final int TURRET_LEFT_LIMIT  = -500;
+    private static final int TURRET_RIGHT_LIMIT =  500;
 
     // ================= TURRET CONVERSION =================
     // How many encoder ticks = 1 degree of turret rotation. TUNE THIS.
@@ -92,6 +92,10 @@ public class TeleOp_Maybe extends LinearOpMode {
         turretMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         turretMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turretMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
+        // FIX: If turret still spins the wrong way after the sign flip in the
+        // tracking math, uncomment this line to reverse the motor direction:
+        // turretMotor.setDirection(DcMotor.Direction.REVERSE);
 
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
 
@@ -210,7 +214,8 @@ public class TeleOp_Maybe extends LinearOpMode {
      *  2. Compute absolute field angle from robot to hoop using atan2
      *  3. Subtract robot heading to get the turret angle error in robot-relative frame
      *  4. Normalize error to [-180, 180] degrees
-     *  5. Run PD controller — but clamp output at encoder limits
+     *  5. FIX: Negate the error to correct for atan2 (CCW+) vs Pedro heading (CW+) convention mismatch
+     *  6. Run PD controller — but clamp output at encoder limits
      *     (tracking math keeps running even when at a limit)
      */
     private void updateTurretTracking() {
@@ -230,8 +235,10 @@ public class TeleOp_Maybe extends LinearOpMode {
         while (angleErrorRad >  Math.PI) angleErrorRad -= 2 * Math.PI;
         while (angleErrorRad < -Math.PI) angleErrorRad += 2 * Math.PI;
 
-        // Convert to degrees for the PD controller
-        double angleErrorDeg = Math.toDegrees(angleErrorRad);
+        // FIX: Negate to correct convention mismatch between atan2 (CCW positive)
+        // and Pedro Pathing heading (CW positive). Without this the turret drives
+        // the wrong direction and slams into the limit immediately.
+        double angleErrorDeg = -Math.toDegrees(angleErrorRad);
 
         // PD controller
         double derivative = angleErrorDeg - lastAngleError;

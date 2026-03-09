@@ -16,7 +16,6 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 import org.firstinspires.ftc.teamcode.Storedvalues.RobotPose;
-import org.firstinspires.ftc.teamcode.subsystems.TurretRed;
 import org.firstinspires.ftc.teamcode.subsystems.Shooter;
 
 @Autonomous(name = "RC2", group = "Auto")
@@ -31,17 +30,16 @@ public class Red_Close_15_2 extends LinearOpMode {
     private Servo transferBlocker;
     private Servo Gate; // Controlled locally for precise Auto timing
 
-    private TurretRed turret;
+
     private Shooter shooter;
 
     private com.qualcomm.robotcore.util.ElapsedTime matchTimer = new com.qualcomm.robotcore.util.ElapsedTime();
-    private static final double TURRET_START_DELAY = 2.0;
 
     // =======================
     // Shooter Constants
     // =======================
     private static final double TARGET_RPM_INITIAL = 3400;
-    private static final double TARGET_RPM_FUTURE  = 3400;
+    private static final double TARGET_RPM_FUTURE  = 3360;
     private double activeTargetRPM = TARGET_RPM_INITIAL;
 
     // =======================
@@ -55,7 +53,8 @@ public class Red_Close_15_2 extends LinearOpMode {
     // =======================
     private static final double SERVO_HOME           = 0.5;
     private static final double TRANSFER_RESET_DELAY = 0.35;
-    private static final double INTAKE_SPEED = 0.75;
+    private static final double INITIAL_SHOOT_SPEED = 0.25;
+    private static final double INTAKE_SPEED = 0.6;
 
     // =======================
     // Intake wait at pick pose
@@ -70,8 +69,8 @@ public class Red_Close_15_2 extends LinearOpMode {
     private final Pose shootPose         = new Pose(96,  96,  Math.toRadians(45));
     private final Pose pickupPose2       = new Pose(102, 60,  Math.toRadians(0));
     private final Pose Intake2End        = new Pose(134, 60,  Math.toRadians(0));
-    private final Pose clearPose         = new Pose(129, 68,  Math.toRadians(0));
-    private final Pose pickFromClearPose = new Pose(132, 66,  Math.toRadians(45));
+    private final Pose clearPose         = new Pose(122, 63,  Math.toRadians(0));
+    private final Pose pickFromClearPose = new Pose(135, 60,  Math.toRadians(37.5));
     private final Pose pickupPose1       = new Pose(102, 84,  Math.toRadians(0));
     private final Pose Intake1End        = new Pose(128, 84,  Math.toRadians(0));
     private final Pose intermediatePose1 = new Pose(108, 60,  Math.toRadians(22.5));
@@ -125,7 +124,7 @@ public class Red_Close_15_2 extends LinearOpMode {
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
 
         // ── Subsystem Init ─────────────────────────────────────────────────
-        turret = new TurretRed(hardwareMap);
+
 
         shooter = new Shooter(hardwareMap);
         shooter.initControllers();
@@ -209,9 +208,6 @@ public class Red_Close_15_2 extends LinearOpMode {
             follower.update();
             updateShooter(); // Delegate logic entirely to the Shooter class
 
-            if (matchTimer.seconds() >= TURRET_START_DELAY) {
-                turret.update();
-            }
             updateStateMachine();
 
             telemetry.addData("State", state);
@@ -230,7 +226,6 @@ public class Red_Close_15_2 extends LinearOpMode {
         shooter.setShooterOn(false);
         shooter.updatePIDF(voltageSensor, telemetry); // Forces motors to 0
         middleTransfer.setPower(0);
-        turret.stop();
         Gate.setPosition(GATE_CLOSED);
     }
 
@@ -247,9 +242,11 @@ public class Red_Close_15_2 extends LinearOpMode {
             // ── FIRST SHOOT CYCLE ────────────────────
             case 0:
                 activeTargetRPM = TARGET_RPM_INITIAL;
+                follower.setMaxPower(INITIAL_SHOOT_SPEED);
                 middleTransfer.setPower(1.0);
                 follower.followPath(toShootFromStart, true);
                 middleTransfer.setPower(0.0);
+                follower.setMaxPower(1.0);
                 setState(1);
                 break;
 
@@ -367,7 +364,6 @@ public class Red_Close_15_2 extends LinearOpMode {
 
             case 14:
                 if (!follower.isBusy()) {
-                    middleTransfer.setPower(0);
                     setState(15);
                 }
                 break;
@@ -375,7 +371,6 @@ public class Red_Close_15_2 extends LinearOpMode {
             case 15:
                 if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME_2) {
                     Gate.setPosition(GATE_OPEN);
-                    middleTransfer.setPower(1.0);
                     setState(16);
                 }
                 break;
@@ -421,7 +416,6 @@ public class Red_Close_15_2 extends LinearOpMode {
 
             case 21:
                 if (!follower.isBusy()) {
-                    middleTransfer.setPower(0);
                     setState(22);
                 }
                 break;
@@ -429,7 +423,6 @@ public class Red_Close_15_2 extends LinearOpMode {
             case 22:
                 if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME_2) {
                     Gate.setPosition(GATE_OPEN);
-                    middleTransfer.setPower(1.0);
                     setState(23);
                 }
                 break;
