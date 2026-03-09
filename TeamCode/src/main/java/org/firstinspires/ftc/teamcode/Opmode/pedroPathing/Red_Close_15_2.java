@@ -15,6 +15,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
+import org.firstinspires.ftc.teamcode.Storedvalues.RobotPose;
 import org.firstinspires.ftc.teamcode.subsystems.TurretRed;
 import org.firstinspires.ftc.teamcode.subsystems.Shooter;
 
@@ -218,6 +219,12 @@ public class Red_Close_15_2 extends LinearOpMode {
             telemetry.addData("Timer (s)", String.format("%.2f", actionTimer.getElapsedTimeSeconds()));
             telemetry.update(); // Note: Shooter class also handles RPM telemetry internally
         }
+
+        // Positions for end of auto for passing on
+        RobotPose.endX       = follower.getPose().getX();
+        RobotPose.endY       = follower.getPose().getY();
+        RobotPose.endHeading = follower.getPose().getHeading();
+        RobotPose.hasData    = true;
 
         // Cleanup on stop
         shooter.setShooterOn(false);
