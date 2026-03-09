@@ -11,7 +11,9 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
-public class TurretBlue {
+import org.firstinspires.ftc.teamcode.subsystems.TurretInterface;
+
+public class TurretBlue implements TurretInterface {
     private DcMotor turretMotor;
     private Limelight3A limelight;
     private ElapsedTime loopTimer = new ElapsedTime();
@@ -71,7 +73,8 @@ public class TurretBlue {
         loopTimer.reset();
     }
 
-    public void update() {
+    @Override
+    public void update(double manualPower) {
         double dt = Math.max(0.001, loopTimer.seconds());
         loopTimer.reset();
 
@@ -81,8 +84,17 @@ public class TurretBlue {
 
         currentOutputPower = 0;
 
-        // 1. TRACKING
-        if (currentlyHasTarget) {
+        // 1. MANUAL OVERRIDE
+        if (Math.abs(manualPower) > 0.1) {
+            currentMode = "MANUAL";
+            currentOutputPower = manualPower * 0.5; // Apply some scaling
+            lastTx = 0;
+            wasTracking = false;
+            framesWithoutTarget = 0;
+        }
+
+        // 2. TRACKING
+        else if (currentlyHasTarget) {
             currentTx = result.getTx();
             currentTa = result.getTa(); // Read the target area (size of target on screen)
 
@@ -119,14 +131,14 @@ public class TurretBlue {
             }
         }
 
-        // 2. DEBOUNCE HOLD
+        // 3. DEBOUNCE HOLD
         else if (framesWithoutTarget < LOSS_DEBOUNCE_FRAMES) {
             framesWithoutTarget++;
             currentMode = "HOLDING (" + framesWithoutTarget + "/" + LOSS_DEBOUNCE_FRAMES + ")";
             currentOutputPower = 0;
         }
 
-        // 3. SEARCHING
+        // 4. SEARCHING
         else {
             currentMode = "SEARCHING";
             wasTracking = false;
@@ -143,7 +155,7 @@ public class TurretBlue {
             currentMode += scanningRight ? " ->" : " <-";
         }
 
-        // 4. SAFETY LIMITS & EXECUTION
+        // 5. SAFETY LIMITS & EXECUTION
         currentOutputPower = Math.max(-MAX_POWER, Math.min(MAX_POWER, currentOutputPower));
 
         if (currentPos <= LEFT_LIMIT && currentOutputPower > 0) currentOutputPower = 0;
@@ -153,6 +165,7 @@ public class TurretBlue {
     }
 
     @SuppressLint("DefaultLocale")
+    @Override
     public void addTelemetry(Telemetry telemetry) {
         telemetry.addLine("===== TURRET =====");
         telemetry.addData("Mode", currentMode);
@@ -169,11 +182,13 @@ public class TurretBlue {
         telemetry.addData("Power", String.format("%.3f", currentOutputPower));
     }
 
+    @Override
     public void resetEncoder() {
         turretMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turretMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
     }
 
+    @Override
     public void stop() {
         limelight.stop();
         turretMotor.setPower(0);

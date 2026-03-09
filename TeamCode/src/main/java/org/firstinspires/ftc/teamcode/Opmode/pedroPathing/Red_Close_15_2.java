@@ -38,8 +38,8 @@ public class Red_Close_15_2 extends LinearOpMode {
     // =======================
     // Shooter Constants
     // =======================
-    private static final double TARGET_RPM_INITIAL = 3400;
-    private static final double TARGET_RPM_FUTURE  = 3360;
+    private static final double TARGET_RPM_INITIAL = 3450;
+    private static final double TARGET_RPM_FUTURE  = 3450;
     private double activeTargetRPM = TARGET_RPM_INITIAL;
 
     // =======================
@@ -69,7 +69,7 @@ public class Red_Close_15_2 extends LinearOpMode {
     private final Pose shootPose         = new Pose(96,  96,  Math.toRadians(45));
     private final Pose pickupPose2       = new Pose(102, 60,  Math.toRadians(0));
     private final Pose Intake2End        = new Pose(134, 60,  Math.toRadians(0));
-    private final Pose clearPose         = new Pose(122, 63,  Math.toRadians(0));
+    private final Pose clearPose         = new Pose(122, 65,  Math.toRadians(0));
     private final Pose pickFromClearPose = new Pose(135, 61.5                                                                                                                                                                                                           ,  Math.toRadians(37.5));
     private final Pose pickupPose1       = new Pose(102, 84,  Math.toRadians(0));
     private final Pose Intake1End        = new Pose(128, 84,  Math.toRadians(0));
