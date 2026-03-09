@@ -58,7 +58,7 @@ public class shooterspeedTest extends LinearOpMode {
     public void runOpMode() {
 
         // --- FTC DASHBOARD SETUP ---
-        // Route all telemetry to both the Driver Station AND the web browser
+        // Route all telemetry to both the Driver Station AND the web-browser
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         // HARDWARE MAP
