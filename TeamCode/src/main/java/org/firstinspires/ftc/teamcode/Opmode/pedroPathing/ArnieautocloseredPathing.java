@@ -373,7 +373,6 @@ public class ArnieautocloseredPathing extends LinearOpMode {
             case 38: // shoot
                 if (actionTimer.getElapsedTimeSeconds() > 6.5) setState(39);
                 break;
-
             // ── park ────────────────────────────────────────────────────────
             case 39:
                 follower.followPath(toPark, true); setState(40);
