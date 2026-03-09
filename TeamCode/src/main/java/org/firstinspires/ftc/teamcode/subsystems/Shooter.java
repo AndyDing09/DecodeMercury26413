@@ -52,7 +52,7 @@ public class Shooter {
 
     private double targetRPM = 0;
     private double kP_shooter, kI_shooter, kD_shooter, kF_shooter;
-    private final double kP_shooter_low  = 0.00002, kI_shooter_low  = 0.00003, kD_shooter_low  = 0.00008, kF_shooter_low  = 0.00040;
+    private final double kP_shooter_low  = 0.00001, kI_shooter_low  = 0.00002, kD_shooter_low  = 0, kF_shooter_low  = 0.00043;
     private final double kP_shooter_high = 0.00012, kI_shooter_high = 0.00003, kD_shooter_high = 0.00008, kF_shooter_high = 0.00045;
 
     private PIDFMotorController leftController;
