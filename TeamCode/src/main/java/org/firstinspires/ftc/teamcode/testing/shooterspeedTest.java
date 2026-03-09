@@ -1,5 +1,8 @@
 package org.firstinspires.ftc.teamcode.testing;
 
+import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.config.Config;
+import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -7,6 +10,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
+@Config // <--- TELLS THE DASHBOARD TO LOOK AT THIS CLASS
 @TeleOp(name="Dual Shooter with Custom PIDF", group="Testing")
 public class shooterspeedTest extends LinearOpMode {
 
@@ -17,9 +21,10 @@ public class shooterspeedTest extends LinearOpMode {
     private VoltageSensor voltageSensor;
 
     // ================= SPEED VARIABLES =================
-    private double targetRPM = 0;
+    // Changed to public static so it can be edited live on the dashboard
+    public static double targetRPM = 0;
     private static final double TICKS_PER_REV = 28.0;
-    private static final double NOMINAL_VOLTAGE = 12.0; // nominal battery voltage (12V)
+    private static final double NOMINAL_VOLTAGE = 12.0;
 
     // Gamepad 1 Edge Detection
     private boolean lastG1DpadUp = false, lastG1DpadDown = false;
@@ -30,20 +35,18 @@ public class shooterspeedTest extends LinearOpMode {
     private boolean intakeOn = false;
 
     // ================= CUSTOM PIDF VARIABLES =================
-    // IMPORTANT: Custom PIDF outputs motor power (0.0 to 1.0).
-    // These values will be much smaller than the built-in REV hub values!
-    private double kP_shooter = 0.0064;  // Gain has been tuned up with hardware.
-    private double kI_shooter = 0.00001;
-    private double kD_shooter = 0.0;
-
-    // Unified feedforward for both motors to prevent lag
-    private double kF_shooter = 0.0007;
+    // IMPORTANT: Changed to public static. Now you can type these values
+    // directly into the FTC Dashboard on your laptop!
+    public static double kP_shooter = 0.0064;
+    public static double kI_shooter = 0.00001;
+    public static double kD_shooter = 0.0;
+    public static double kF_shooter = 0.0007;
 
     // Controllers (one per motor)
     private PIDFMotorController leftController;
     private PIDFMotorController rightController;
 
-    // Tuning selection state
+    // Tuning selection state (for Gamepad 2)
     private enum TuneState { P, I, D, F }
     private TuneState currentSelected = TuneState.P;
 
@@ -53,6 +56,11 @@ public class shooterspeedTest extends LinearOpMode {
 
     @Override
     public void runOpMode() {
+
+        // --- FTC DASHBOARD SETUP ---
+        // Route all telemetry to both the Driver Station AND the web-browser
+        telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
+
         // HARDWARE MAP
         shooterLeft = hardwareMap.get(DcMotorEx.class, "shooterLeft");
         shooterRight = hardwareMap.get(DcMotorEx.class, "shooterRight");
@@ -62,27 +70,19 @@ public class shooterspeedTest extends LinearOpMode {
         shooterLeft.setDirection(DcMotorSimple.Direction.REVERSE);
         shooterRight.setDirection(DcMotorSimple.Direction.FORWARD);
 
-        // We use RUN_WITHOUT_ENCODER so we can feed it raw power from our custom PIDF math,
-        // but the encoders will STILL track velocity for us to read.
         shooterLeft.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         shooterRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
         shooterLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         shooterRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
-        telemetry.addLine("✅ Custom PIDF Shooter Initialized");
-        telemetry.addLine("--- GAMEPAD 1 (SPEED) ---");
-        telemetry.addLine("D-Pad Up/Down: +/- 100 RPM");
-        telemetry.addLine("A: 0 | X: 1000 | Y: 2000 | B: 2500");
-        telemetry.addLine("Circle: Toggle Intake");
-        telemetry.addLine("--- GAMEPAD 2 (TUNING) ---");
-        telemetry.addLine("D-Pad L/R: Select P, I, D, F_Left, or F_Right");
-        telemetry.addLine("D-Pad U/D: Adjust value");
+        telemetry.addLine("✅ Custom PIDF Shooter w/ Dashboard Initialized");
+        telemetry.addLine("Connect to: 192.168.43.1:8080/dash");
         telemetry.update();
 
         waitForStart();
 
-        // instantiate controllers using tuned gains and unified feed-forward
+        // instantiate controllers using tuned gains
         leftController = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_shooter, TICKS_PER_REV);
         rightController = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_shooter, TICKS_PER_REV);
 
@@ -92,6 +92,7 @@ public class shooterspeedTest extends LinearOpMode {
             boolean currentG1DpadUp = gamepad1.dpad_up;
             boolean currentG1DpadDown = gamepad1.dpad_down;
 
+            // Still works! Will update the dashboard number automatically
             if (currentG1DpadUp && !lastG1DpadUp) targetRPM += 100;
             if (currentG1DpadDown && !lastG1DpadDown) targetRPM -= 100;
 
@@ -102,7 +103,7 @@ public class shooterspeedTest extends LinearOpMode {
 
             if (targetRPM < 0) targetRPM = 0;
 
-            // Reset controllers if we shut off the motors to prevent wind-up
+            // Reset controllers if we shut off the motors
             if (targetRPM == 0) {
                 if (leftController != null) leftController.reset();
                 if (rightController != null) rightController.reset();
@@ -140,15 +141,9 @@ public class shooterspeedTest extends LinearOpMode {
                 else if (currentSelected == TuneState.I) currentSelected = TuneState.P;
             }
 
-            // Custom increment sizes
-            double increment;
-            if (currentSelected == TuneState.I) {
-                // Integral term needs to be 10x smaller to prevent instant saturation
-                increment = gamepad2.left_bumper ? 0.00001 : 0.0001;
-            } else {
-                // Standard tuning steps for P, D, and F
-                increment = gamepad2.left_bumper ? 0.0001 : 0.001;
-            }
+            double increment = (currentSelected == TuneState.I) ?
+                    (gamepad2.left_bumper ? 0.00001 : 0.0001) :
+                    (gamepad2.left_bumper ? 0.0001 : 0.001);
 
             if (currentG2DpadUp && !lastG2DpadUp) {
                 switch(currentSelected) {
@@ -171,22 +166,19 @@ public class shooterspeedTest extends LinearOpMode {
             lastG2DpadLeft = currentG2DpadLeft;
             lastG2DpadRight = currentG2DpadRight;
 
-            // ================= CUSTOM PIDF (via PIDFMotorController) =================
+            // ================= CUSTOM PIDF =================
             double powerLeft = 0.0;
             double powerRight = 0.0;
+            double currentVoltage = voltageSensor.getVoltage();
 
             if (targetRPM == 0) {
                 shooterLeft.setPower(0.0);
                 shooterRight.setPower(0.0);
             } else {
-                // Apply live tunings (keeps controllers in sync with gamepad adjustments)
+                // Apply live tunings (Pulls directly from Dashboard or Gamepad variables)
                 if (leftController != null) leftController.setTunings(kP_shooter, kI_shooter, kD_shooter, kF_shooter);
                 if (rightController != null) rightController.setTunings(kP_shooter, kI_shooter, kD_shooter, kF_shooter);
 
-                // Get current battery voltage for compensation
-                double currentVoltage = voltageSensor.getVoltage();
-
-                // Compute power with voltage compensation
                 powerLeft = leftController.computePowerForTargetRPMWithVoltageCompensation(
                         targetRPM, shooterLeft.getVelocity(), currentVoltage, NOMINAL_VOLTAGE);
                 powerRight = rightController.computePowerForTargetRPMWithVoltageCompensation(
@@ -196,32 +188,27 @@ public class shooterspeedTest extends LinearOpMode {
                 shooterRight.setPower(powerRight);
             }
 
-            // ================= TELEMETRY =================
-            double targetVelocity = (targetRPM * TICKS_PER_REV) / 60.0;
+            // ================= TELEMETRY / GRAPHING =================
             double currentVelocityLeft = shooterLeft.getVelocity();
             double currentVelocityRight = shooterRight.getVelocity();
+            double rpmL = (currentVelocityLeft * 60.0) / TICKS_PER_REV;
+            double rpmR = (currentVelocityRight * 60.0) / TICKS_PER_REV;
 
+            // Data added here is automatically graphed on the Dashboard
             telemetry.addData("TARGET RPM", targetRPM);
-            telemetry.addData("Power (L/R)", "%.2f / %.2f", powerLeft, powerRight);
-            telemetry.addData("Intake", intakeOn ? "ON" : "OFF");
-            telemetry.addLine();
+            telemetry.addData("Left Actual RPM", rpmL);
+            telemetry.addData("Right Actual RPM", rpmR);
+            telemetry.addData("Power L", powerLeft);
+            telemetry.addData("Power R", powerRight);
+            telemetry.addData("Battery Voltage", currentVoltage);
 
-            telemetry.addLine("--- PIDF TUNING ---");
-            telemetry.addData("Selected", "-> " + currentSelected.name() + " <-");
-            telemetry.addData("kP_shooter", "%.5f %s", kP_shooter, currentSelected == TuneState.P ? "<--" : "");
-            telemetry.addData("kI_shooter", "%.5f %s", kI_shooter, currentSelected == TuneState.I ? "<--" : "");
-            telemetry.addData("kD_shooter", "%.5f %s", kD_shooter, currentSelected == TuneState.D ? "<--" : "");
-            telemetry.addData("kF_shooter", "%.5f %s", kF_shooter, currentSelected == TuneState.F ? "<--" : "");
-            telemetry.addLine("(Hold G2 Left Bumper for finer increments. 'I' is 10x finer)");
-            telemetry.addLine();
+            telemetry.addLine("\n--- PIDF TUNING ---");
+            telemetry.addData("kP", kP_shooter);
+            telemetry.addData("kI", kI_shooter);
+            telemetry.addData("kD", kD_shooter);
+            telemetry.addData("kF", kF_shooter);
 
-            telemetry.addLine("--- MOTOR PERFORMANCE ---");
-            telemetry.addData("Target Ticks/Sec", targetVelocity);
-            telemetry.addData("Left Actual RPM", (currentVelocityLeft * 60.0) / TICKS_PER_REV);
-            telemetry.addData("Right Actual RPM", (currentVelocityRight * 60.0) / TICKS_PER_REV);
-            double currentVoltage = voltageSensor.getVoltage();
-            telemetry.addData("Battery Voltage", String.format("%.1f V", currentVoltage));
-
+            // Pushes to Driver Station and Browser
             telemetry.update();
         }
     }
