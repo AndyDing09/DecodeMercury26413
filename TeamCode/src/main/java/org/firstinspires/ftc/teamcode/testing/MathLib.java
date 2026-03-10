@@ -17,7 +17,7 @@ public final class MathLib {
     public static final double TARGET_HEIGHT = 1.22;         // goal height in meters
     public static final double LAUNCHER_HEIGHT = 0.32385;    // shooter height in meters
     public static final double MIN_HOOD_ANGLE = 26.0;
-    public static final double MAX_HOOD_ANGLE = 39.5;
+    public static final double MAX_HOOD_ANGLE = 45.0;
     public static final double LAUNCHER_MAX_BALL_VELOCITY = 15.0;
 
     // ==================== GOAL POSITIONS (field inches) ====================
@@ -35,7 +35,7 @@ public final class MathLib {
     public static final double DISTANCE_OFFSET = 0.0;
 
     // ==================== HOOD SERVO CONVERSION ====================
-    public static final double SMALL_GEAR_DIAMETER = 57.25;
+    public static final double SMALL_GEAR_DIAMETER = 104.0;
     public static final double LARGE_GEAR_DIAMETER = 375.0;
     public static final double GEAR_RATIO = LARGE_GEAR_DIAMETER / SMALL_GEAR_DIAMETER;
     public static final double SERVO_START_POS = 0.5;
@@ -53,8 +53,23 @@ public final class MathLib {
     private static final double[] INPUT_MS =
             {-0.01, 0.0, 4.29, 4.49, 4.76, 5.22, 5.65, 6.06, 6.44, 6.86, 7.2, 10.0};
     private static final double[] OUTPUT_TICKS =
-            {-0.01, 0.0, 1040.0, 1100.0, 1180.0, 1320.0, 1480.0, 1620.0, 1780.0, 1940.0, 1980.0, 2100.0};
+            {-0.01, 0.0, 1220.0, 1280.0, 1360.0, 1500.0, 1660.0, 1800.0, 1960.0, 2120.0, 2160.0, 2280.0};
 
+    // The distances your code calculates or asks the system to move.
+    // IMPORTANT: These values must be sorted from lowest to highest!
+    private static final double[] REAL_DISTANCES = {
+            1.7,   // Point 0
+            1.9,  // Point 1
+            2.5,  // Point 2
+    };
+
+    // The actual, physical distances measured in the real world.
+    // These must correspond directly to the index of the theoretical distances above.
+    private static final double[] THEORETICAL_DISTANCES = {
+            1.6,   // Real distance when 0.0 is requested
+            2,  // Real distance when 10.0 is requested (overshot slightly)
+            3.2,  // Real distance when 20.0 is requested (undershot slightly)
+    };
 
 
     // ==========================================================================
@@ -89,7 +104,7 @@ public final class MathLib {
     // ==========================================================================
 
     /**
-     * Convert hood angle (degrees) to servo position.
+     * Convert hood angle (degrees) to base servo position (before flip/offsets).
      * Servo 0.5 = MIN_HOOD_ANGLE. Servo increases to raise the hood.
      */
     public static double hoodAngleToServoPos(double angleDeg) {
@@ -97,6 +112,16 @@ public final class MathLib {
         double clamped = Math.max(MIN_HOOD_ANGLE, Math.min(effectiveMax, angleDeg));
         double servoPos = SERVO_START_POS + (clamped - MIN_HOOD_ANGLE) * SERVO_UNITS_PER_HOOD_DEGREE;
         return Math.max(0.0, Math.min(1.0, servoPos));
+    }
+
+    /** Servo1 position: normal (matching hoodtest) */
+    public static double servo1Position(double angleDeg) {
+        return hoodAngleToServoPos(angleDeg);
+    }
+
+    /** Servo2 position: flipped (matching hoodtest) */
+    public static double servo2Position(double angleDeg) {
+        return 1.0 - hoodAngleToServoPos(angleDeg);
     }
 
     /**
@@ -204,6 +229,35 @@ public final class MathLib {
                         (OUTPUT_TICKS[i + 1] - OUTPUT_TICKS[i]);
             }
         }
+
         return 0.0;
+    }
+    // Make sure to define these arrays in your class, sorted from lowest to highest!
+    // private static final double[] THEORETICAL_DISTANCES = { ... };
+    // private static final double[] REAL_DISTANCES = { ... };
+
+    public static double interpolateToShootingDistance(double theoreticalDistance) {
+        // Handle out-of-bounds inputs by clamping to the lowest or highest known values
+        if (theoreticalDistance <= THEORETICAL_DISTANCES[0]) {
+            return REAL_DISTANCES[0];
+        }
+        if (theoreticalDistance >= THEORETICAL_DISTANCES[THEORETICAL_DISTANCES.length - 1]) {
+            return REAL_DISTANCES[REAL_DISTANCES.length - 1];
+        }
+
+        // Loop through the intervals to find where the input theoretical distance falls
+        for (int i = 0; i < THEORETICAL_DISTANCES.length - 1; i++) {
+            if (theoreticalDistance >= THEORETICAL_DISTANCES[i] && theoreticalDistance <= THEORETICAL_DISTANCES[i + 1]) {
+
+                // Calculate how far along the input interval our value is (from 0.0 to 1.0)
+                double fraction = (theoreticalDistance - THEORETICAL_DISTANCES[i]) /
+                        (THEORETICAL_DISTANCES[i + 1] - THEORETICAL_DISTANCES[i]);
+
+                // Apply that same fraction to the output interval
+                return REAL_DISTANCES[i] + fraction *
+                        (REAL_DISTANCES[i + 1] - REAL_DISTANCES[i]);
+            }
+        }
+        return 0.0; // Fallback (should theoretically never be reached due to clamping above)
     }
 }

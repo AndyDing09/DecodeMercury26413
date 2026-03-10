@@ -23,10 +23,6 @@ public class hoodtest extends LinearOpMode {
     private static final double SERVO_UNITS_PER_HOOD_DEGREE = GEAR_RATIO / 180.0;
     private static final double MAX_REACHABLE_HOOD_ANGLE = MIN_HOOD_ANGLE + (1.0 - SERVO_START_POS) * 180.0 / GEAR_RATIO;
 
-    // servo offsets so servo1 inits to 0.52 and servo2 inits to 0.48
-    private static final double SERVO1_OFFSET = 0.02;
-    private static final double SERVO2_OFFSET = 0.02;
-
     private boolean lastDpadUp = false;
     private boolean lastDpadDown = false;
 
@@ -57,9 +53,9 @@ public class hoodtest extends LinearOpMode {
 
             // Rising-edge detection: one degree per button tap
             if (currentDpadUp && !lastDpadUp) {
-                currentHoodAngle -= 1.0;  // flipped
+                currentHoodAngle += 1.0;
             } else if (currentDpadDown && !lastDpadDown) {
-                currentHoodAngle += 1.0;  // flipped
+                currentHoodAngle -= 1.0;
             }
 
             // Clamp to valid range
@@ -75,11 +71,11 @@ public class hoodtest extends LinearOpMode {
             // ================= TELEMETRY =================
             double servoPos = angleToServoPosition(currentHoodAngle);
             telemetry.addLine("=== Hood Control ===");
-            telemetry.addData("Hood Angle (deg)",          String.format("%.1f", currentHoodAngle));
-            telemetry.addData("Servo1 Position (flipped)", String.format("%.4f", (1.0 - servoPos) + SERVO1_OFFSET));
-            telemetry.addData("Servo2 Position",           String.format("%.4f", servoPos - SERVO2_OFFSET));
-            telemetry.addData("Min / Max Angle", MIN_HOOD_ANGLE + " / " + String.format("%.1f", effectiveMax));
-            telemetry.addLine("D-Pad Up: hood up | D-Pad Down: hood down");
+            telemetry.addData("Hood Angle (deg)",    String.format("%.1f", currentHoodAngle));
+            telemetry.addData("Servo1 Position (flipped)", String.format("%.4f", 1.0 - servoPos));
+            telemetry.addData("Servo2 Position",           String.format("%.4f", servoPos));
+            telemetry.addData("Min / Max Angle",     MIN_HOOD_ANGLE + " / " + String.format("%.1f", effectiveMax));
+            telemetry.addLine("D-Pad Up: +1 deg | D-Pad Down: -1 deg");
             telemetry.update();
 
             sleep(20);
@@ -97,7 +93,7 @@ public class hoodtest extends LinearOpMode {
 
     private void updateHoodServoPosition(double angle) {
         double servoPos = angleToServoPosition(angle);
-        hoodServo1.setPosition((1.0 - servoPos) + SERVO1_OFFSET);  // flipped + offset → inits at 0.52
-        hoodServo2.setPosition(servoPos - SERVO2_OFFSET);           // normal  - offset → inits at 0.48
+        hoodServo2.setPosition(1.0 - servoPos);  // flipped — same axle, opposite direction
+        hoodServo1.setPosition(servoPos);
     }
 }

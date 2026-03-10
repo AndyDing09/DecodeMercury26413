@@ -1,6 +1,8 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
 import com.acmerobotics.dashboard.config.Config;
+import com.qualcomm.hardware.limelightvision.LLResult;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -21,6 +23,7 @@ public class Shooter {
     private final DcMotorEx shooterLeft, shooterRight;
     private final Servo gate;
     private final Servo hoodServo1, hoodServo2;
+    private final Limelight3A limelight;
 
     public enum OuttakeState { IDLE, RAMPING, GATE_OPEN, TRANSFERRING }
     private OuttakeState outtakeState = OuttakeState.IDLE;
@@ -53,10 +56,10 @@ public class Shooter {
 
     private double targetRPM = 0;
     private double kP_shooter, kI_shooter, kD_shooter, kF_shooter;
-    public static double kP_shooter_low  = 0.00001;
-    public static double kI_shooter_low  = 0.00002;
-    public static double kD_shooter_low  = 0.0000;
-    public static double kF_shooter_low  = 0.00043;
+    public static double kP_shooter_low  = 0.00002;
+    public static double kI_shooter_low  = 0.00003;
+    public static double kD_shooter_low  = 0.00008;
+    public static double kF_shooter_low  = 0.00040;
     public static double kP_shooter_high = 0.00012;
     public static double kI_shooter_high = 0.00003;
     public static double kD_shooter_high = 0.00008;
@@ -77,6 +80,10 @@ public class Shooter {
     private boolean autoCalcEnabled = false;
     private double autoCalcRPM = 0;
     private double autoCalcServoPos = HOOD_SERVO_INIT;
+
+    public static double CAMERA_HEIGHT_METERS = 0.3; // TODO: Tune this to your robot's camera height
+    public static double CAMERA_MOUNT_ANGLE_DEGREES = 20.0; // TODO: Tune this to your camera's mounting angle
+
     public void setShooterOn(boolean on) { this.shooterOn = on; }
     public Servo getGate() { return gate; }
     public Shooter(HardwareMap hardwareMap) {
@@ -85,6 +92,9 @@ public class Shooter {
         gate         = hardwareMap.servo.get("Gate");
         hoodServo1   = hardwareMap.servo.get("angleChange1");
         hoodServo2   = hardwareMap.servo.get("angleChange2");
+        limelight    = hardwareMap.get(Limelight3A.class, "limelight");
+
+        limelight.start();
 
         shooterLeft .setDirection(DcMotorSimple.Direction.REVERSE);
         shooterRight.setDirection(DcMotorSimple.Direction.FORWARD);
@@ -231,6 +241,35 @@ public class Shooter {
         lastHoodServoPos = position;
         hoodServo1.setPosition(position);
         hoodServo2.setPosition(position);
+    }
+
+    public void updateFromLimelight(Telemetry telemetry) {
+        LLResult result = limelight.getLatestResult();
+        if (result != null && result.isValid()) {
+            double ty = result.getTy();
+            double angleToGoalDegrees = CAMERA_MOUNT_ANGLE_DEGREES + ty;
+            double angleToGoalRadians = Math.toRadians(angleToGoalDegrees);
+
+            // Calculate distance: (Target Height - Camera Height) / tan(Mount Angle + ty)
+            double distanceMeters = (MathLib.TARGET_HEIGHT - CAMERA_HEIGHT_METERS) / Math.tan(angleToGoalRadians);
+
+            LauncherSolution solution = MathLib.distanceToLauncherValues(distanceMeters);
+
+            if (solution.isValid()) {
+                autoCalcEnabled = true;
+                autoCalcRPM = MathLib.solutionToRPM(solution);
+                autoCalcServoPos = MathLib.solutionToServoPos(solution);
+
+                if (shooterOn && !shooterKilled) {
+                    targetRPM = autoCalcRPM;
+                    currentHoodAnglePos = autoCalcServoPos;
+                    updateHoodServos(currentHoodAnglePos);
+                }
+            } else {
+                autoCalcEnabled = false;
+            }
+            telemetry.addData("LL Dist", "%.3f m", distanceMeters);
+        }
     }
 
 

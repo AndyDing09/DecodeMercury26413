@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.testing;
 
+import static org.firstinspires.ftc.teamcode.testing.MathLib.interpolateToShootingDistance;
+
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
@@ -37,7 +39,7 @@ public class launchermathtest extends LinearOpMode {
     private static final double TARGET_HEIGHT = 1.22;          // Height of the goal in meters
     private static final double LAUNCHER_HEIGHT = 0.32385;     // Height of your shooter in meters
     private static final double MIN_HOOD_ANGLE = 26.0;
-    private static final double MAX_HOOD_ANGLE = 41;
+    private static final double MAX_HOOD_ANGLE = 45.0;
 
     // ================= SERVOS - HOOD ANGLE CONTROL =================
     private Servo hoodServo1;
@@ -47,7 +49,7 @@ public class launchermathtest extends LinearOpMode {
 
     // ================= GEAR RATIO CONSTANTS =================
     // Small gear on servo axle, large gear on hood pivot
-    private static final double SMALL_GEAR_DIAMETER = 57.25;  // mm (servo-driven gear)
+    private static final double SMALL_GEAR_DIAMETER = 104.0;   // mm (servo-driven gear)
     private static final double LARGE_GEAR_DIAMETER = 375.0;   // mm (hood output gear)
     private static final double GEAR_RATIO = LARGE_GEAR_DIAMETER / SMALL_GEAR_DIAMETER; // ~6.55:1
     // Servo position 0.5 = MIN_HOOD_ANGLE (lowest point)
@@ -60,6 +62,7 @@ public class launchermathtest extends LinearOpMode {
     // Max reachable hood angle given servo range [0.5, 1.0] = 0.5 * 180 / GEAR_RATIO degrees
     private static final double MAX_REACHABLE_HOOD_ANGLE = MIN_HOOD_ANGLE + (1.0 - SERVO_START_POS) * 180.0 / GEAR_RATIO;
     private static final double LAUNCHER_MAX_BALL_VELOCITY = 15.0;
+
     private static final double MAX_DRIVE_VELOCITY = 15.0;
 
     // Goal geometry for lip clearance and backboard targeting
@@ -299,8 +302,10 @@ public class launchermathtest extends LinearOpMode {
             telemetry.addData("4. Target Ticks/Sec", "%.0f", targetVelocityTicks);
             telemetry.addData("5. Target RPM", "%.0f", targetRPMCalc);
             telemetry.addData("Motor Power (L/R)", "%.2f / %.2f", powerLeft, powerRight);
+            double baseServo = angleToServoPosition(currentHoodAngle);
             telemetry.addData("Hood Angle", "%.1f deg %s", currentHoodAngle, manualHoodOverride ? "(MANUAL)" : "(AUTO)");
-            telemetry.addData("Hood Servo Pos", "%.3f", angleToServoPosition(currentHoodAngle));
+            telemetry.addData("Servo1 (normal)",  "%.4f", baseServo);
+            telemetry.addData("Servo2 (flipped)", "%.4f", 1.0 - baseServo);
             telemetry.addLine();
 
             telemetry.addData("Intake", intakeOn ? "ON" : "OFF");
@@ -338,17 +343,19 @@ public class launchermathtest extends LinearOpMode {
         return Math.max(0.0, Math.min(1.0, servoPos));
     }
 
-    /** Update both hood servos on the same axle. */
+    /** Update both hood servos — matching hoodtest: servo1 normal, servo2 flipped. */
     private void updateHoodServoPosition(double angle) {
         double servoPos = angleToServoPosition(angle);
         hoodServo1.setPosition(servoPos);
-        hoodServo2.setPosition(servoPos);
+        hoodServo2.setPosition(1.0 - servoPos);
     }
 
     // =================================================================================
     // PHYSICS CALCULATION (full ballistics solver with lip clearance)
     // =================================================================================
     public static double[] distanceToLauncherValues(double distance) {
+        distance = interpolateToShootingDistance(distance);
+
         distance += DISTANCE_OFFSET;
         if (distance <= 0) return new double[]{Double.NaN, Double.NaN};
 
@@ -435,7 +442,7 @@ public class launchermathtest extends LinearOpMode {
     // =================================================================================
     public static double interpolateToTicks(double velocityMs) {
         double[] inputMs = {-0.01, 0.0, 4.29,   4.49,   4.76,   5.22,   5.65,   6.06,   6.44,   6.86,   7.2,    10.0 };
-        double[] outputTicks = {-0.01, 0.0, 1140.0, 1200.0, 1280.0, 1420.0, 1580.0, 1720.0, 1880.0, 2040.0, 2080.0, 2200.0};
+        double[] outputTicks = {-0.01, 0.0, 1220.0, 1280.0, 1360.0, 1500.0, 1660.0, 1800.0, 1960.0, 2120.0, 2160.0, 2280.0};
 
         if (velocityMs <= inputMs[0]) return outputTicks[0];
         if (velocityMs >= inputMs[inputMs.length - 1]) return outputTicks[outputTicks.length - 1];
