@@ -26,6 +26,7 @@ public class Red_Close_15_2 extends LinearOpMode {
     // =======================
     private DcMotor frontLeftDrive, backLeftDrive, frontRightDrive, backRightDrive;
     private DcMotor middleTransfer;
+    private DcMotor turret; // Turret motor for position locking during auto
     private VoltageSensor voltageSensor;
     private Servo transferBlocker;
     private Servo Gate; // Controlled locally for precise Auto timing
@@ -122,6 +123,14 @@ public class Red_Close_15_2 extends LinearOpMode {
         transferBlocker.setPosition(SERVO_HOME);
 
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
+
+        // ── Turret Lock Init ───────────────────────────────────────────────
+        turret = hardwareMap.get(DcMotor.class, "turret"); // use your actual hardware map name
+        turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        turret.setTargetPosition(0);
+        turret.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        turret.setPower(0.4); // Holds turret at center for entire auto — tune if needed
+        turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         // ── Subsystem Init ─────────────────────────────────────────────────
 
