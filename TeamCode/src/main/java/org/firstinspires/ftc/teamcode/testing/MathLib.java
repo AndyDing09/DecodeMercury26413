@@ -7,7 +7,7 @@ package org.firstinspires.ftc.teamcode.testing;
  * and constraint-based angle selection.
  *
  * All members are static so callers can simply reference
- * {@code MathLib.solveFromPosition(...)} etc.
+ * {@code MathLib.distanceToLauncherValues(...)} etc.
  */
 public final class MathLib {
     private MathLib() {}
@@ -55,45 +55,7 @@ public final class MathLib {
     private static final double[] OUTPUT_TICKS =
             {-0.01, 0.0, 1040.0, 1100.0, 1180.0, 1320.0, 1480.0, 1620.0, 1780.0, 1940.0, 1980.0, 2100.0};
 
-    // ==========================================================================
-    //  POSITION-BASED SOLVER (uses odometry)
-    // ==========================================================================
 
-    /**
-     * Full solver using robot field position. Computes actual distances to the
-     * goal lip, center, and backboard from the robot's (x, y) position.
-     *
-     * @param robotX robot X position in field inches
-     * @param robotY robot Y position in field inches
-     * @return LauncherSolution with velocity and hood angle
-     */
-    public static LauncherSolution solveFromPosition(double robotX, double robotY) {
-        double xLip    = fieldDistanceMeters(robotX, robotY, GOAL_LIP_X, GOAL_LIP_Y);
-        double xCenter = fieldDistanceMeters(robotX, robotY, GOAL_CENTER_X, GOAL_CENTER_Y);
-        double xBack   = fieldDistanceMeters(robotX, robotY, GOAL_BACK_X, GOAL_BACK_Y);
-
-        double deltaYLip = (TARGET_HEIGHT + LIP_BUFFER) - LAUNCHER_HEIGHT;
-
-        // Attempt 1: Backboard shot (priority — faster, flatter)
-        double[] result = calculateBestShot(xBack, TARGET_HEIGHT + BACKBOARD_Y_OFFSET,
-                xLip, deltaYLip, GRAVITY);
-
-        // Attempt 2: Goal center fallback
-        if (Double.isNaN(result[0])) {
-            result = calculateBestShot(xCenter, TARGET_HEIGHT, xLip, deltaYLip, GRAVITY);
-        }
-
-        return new LauncherSolution(result[0], result[1]);
-    }
-
-    /**
-     * Compute Euclidean distance between two field points, returned in meters.
-     */
-    public static double fieldDistanceMeters(double x1, double y1, double x2, double y2) {
-        double dx = x2 - x1;
-        double dy = y2 - y1;
-        return Math.sqrt(dx * dx + dy * dy) * INCHES_TO_METERS;
-    }
 
     // ==========================================================================
     //  DISTANCE-BASED SOLVER (legacy — takes raw distance in meters)

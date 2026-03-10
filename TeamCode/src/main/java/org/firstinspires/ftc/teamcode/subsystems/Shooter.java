@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
+import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -15,7 +16,7 @@ import org.firstinspires.ftc.teamcode.testing.LauncherSolution;
 import org.firstinspires.ftc.teamcode.testing.MathLib;
 import org.firstinspires.ftc.teamcode.testing.PIDFMotorController;
 
-
+@Config
 public class Shooter {
     private final DcMotorEx shooterLeft, shooterRight;
     private final Servo gate;
@@ -52,8 +53,14 @@ public class Shooter {
 
     private double targetRPM = 0;
     private double kP_shooter, kI_shooter, kD_shooter, kF_shooter;
-    private final double kP_shooter_low  = 0.00001, kI_shooter_low  = 0.00002, kD_shooter_low  = 0, kF_shooter_low  = 0.00043;
-    private final double kP_shooter_high = 0.00012, kI_shooter_high = 0.00003, kD_shooter_high = 0.00008, kF_shooter_high = 0.00045;
+    public static double kP_shooter_low  = 0.00001;
+    public static double kI_shooter_low  = 0.00002;
+    public static double kD_shooter_low  = 0.0000;
+    public static double kF_shooter_low  = 0.00043;
+    public static double kP_shooter_high = 0.00012;
+    public static double kI_shooter_high = 0.00003;
+    public static double kD_shooter_high = 0.00008;
+    public static double kF_shooter_high = 0.00045;
 
     private PIDFMotorController leftController;
     private PIDFMotorController rightController;
@@ -226,12 +233,12 @@ public class Shooter {
         hoodServo2.setPosition(position);
     }
 
-    /*
-     * Odometry-based auto-calc — commented out, using fixed RPM from bumpers instead.
-     *
+
     public void updateFromOdometry(Follower follower, Telemetry telemetry) {
         Pose pose = follower.getPose();
-        LauncherSolution solution = MathLib.solveFromPosition(pose.getX(), pose.getY());
+        // Calculate distance from robot position to goal center
+        double distance = Math.hypot(pose.getX() - 132.0, pose.getY() - 132.0) * 0.0254;
+        LauncherSolution solution = MathLib.distanceToLauncherValues(distance);
 
         if (solution.isValid()) {
             autoCalcEnabled = true;
@@ -259,7 +266,7 @@ public class Shooter {
             telemetry.addData("Calc Hood Servo", String.format("%.3f", autoCalcServoPos));
         }
     }
-    */
+
 
     public OuttakeState getOuttakeState() { return outtakeState; }
     public double getTargetRPM() { return targetRPM; }

@@ -1,5 +1,8 @@
 package org.firstinspires.ftc.teamcode.testing;
 
+import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.config.Config;
+import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -8,6 +11,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
+@Config
 @TeleOp(name="LauncherMathTest", group="Testing")
 public class launchermathtest extends LinearOpMode {
 
@@ -75,10 +79,10 @@ public class launchermathtest extends LinearOpMode {
 
     // ================= SHOOTER PIDF (uses PIDFMotorController, same as TeleOp2) =================
     // Aggressive gains for fast recovery after ball launch
-    private double kP = 0.0012;
-    private double kI = 0.0003;
-    private double kD = 0.00008;
-    private double kF = 0.00045;
+    public static double kP = 0.00001;
+    public static double kI = 0.00002;
+    public static double kD = 0.0000;
+    public static double kF = 0.00043;
 
     private PIDFMotorController leftController  = null;
     private PIDFMotorController rightController = null;
@@ -100,8 +104,8 @@ public class launchermathtest extends LinearOpMode {
         hoodServo1 = hardwareMap.servo.get("angleChange1");
         hoodServo2 = hardwareMap.servo.get("angleChange2");
 
-        shooterLeft.setDirection(DcMotorSimple.Direction.FORWARD);
-        shooterRight.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooterLeft.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooterRight.setDirection(DcMotorSimple.Direction.FORWARD);
 
         shooterLeft.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         shooterRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -115,11 +119,13 @@ public class launchermathtest extends LinearOpMode {
         middleTransfer.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         gate = hardwareMap.servo.get("Gate");
-        gate.setPosition(0.5);
+        gate.setPosition(0.09);
 
         // Initialize hood to lowest position (servo 0.5)
         currentHoodAngle = MIN_HOOD_ANGLE;
         updateHoodServoPosition(currentHoodAngle);
+
+        telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         telemetry.addLine("Physics Shooter Initialized");
         telemetry.addLine("--- GAMEPAD 1 ---");
@@ -147,7 +153,7 @@ public class launchermathtest extends LinearOpMode {
             }
             if (curG2Triangle && !lastG2Triangle) {
                 gateOpen = !gateOpen;
-                gate.setPosition(gateOpen ? 0.27 : 0.5);
+                gate.setPosition(gateOpen ? 0.27 : 0.09);
             }
             lastG2Circle = curG2Circle;
             lastG2Triangle = curG2Triangle;
