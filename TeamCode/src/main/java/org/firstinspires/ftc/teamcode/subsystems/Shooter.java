@@ -43,6 +43,10 @@ public class Shooter {
     private static final double HOOD_ANGLE_STEP = 0.05;
     private static final double HOOD_DEADZONE   = 0.03;
 
+    // Hood dip: drop hood 0.05 each time RPM suddenly drops 200+ between loops
+    private static final double HOOD_DIP_RPM_THRESHOLD = 200.0;
+    private static final double HOOD_DIP_AMOUNT        = 0.05;
+
     private static final double GATE_OPEN   = 0.26;
     private static final double GATE_CLOSED = 0.1;
 
@@ -69,9 +73,6 @@ public class Shooter {
     private PIDFMotorController rightController;
 
     private double lastShooterVelocity = 0;
-    private static final double LAUNCH_DROP_THRESHOLD = 50.0; // ~107 RPM drop between loops
-    private static final double HOOD_DIP_AMOUNT = 0.1;
-    private double cumulativeHoodDip = 0;
     private double lastHoodServoPos = -1;
     private double initialRPM = 0; // the high RPM before dropping to CRUISE_RPM
     private boolean intakeStarted = false;
@@ -119,7 +120,7 @@ public class Shooter {
         lastG1Y = yPressed;
         lastG1X = xPressed;
         if (changed) {
-            cumulativeHoodDip = 0;
+
             updateHoodServos(currentHoodAnglePos);
         }
     }
@@ -128,7 +129,7 @@ public class Shooter {
         if (triangle && !lastTriangle) {
             gate.setPosition(GATE_CLOSED);
             outtakeState = OuttakeState.IDLE;
-            cumulativeHoodDip = 0;
+
             currentHoodAnglePos = HOOD_SERVO_INIT;
             updateHoodServos(currentHoodAnglePos);
         }
@@ -137,7 +138,7 @@ public class Shooter {
             shooterKilled = false;
             initialRPM    = LEFT_BUMPER_RPM;
             targetRPM     = LEFT_BUMPER_RPM;
-            cumulativeHoodDip = 0;
+
             currentHoodAnglePos = HOOD_SERVO_INIT;
             updateHoodServos(currentHoodAnglePos);
             gate.setPosition(GATE_OPEN);
@@ -150,7 +151,7 @@ public class Shooter {
             shooterKilled = false;
             initialRPM    = RIGHT_BUMPER_RPM;
             targetRPM     = RIGHT_BUMPER_RPM;
-            cumulativeHoodDip = 0;
+
             currentHoodAnglePos = HOOD_SERVO_INIT;
             updateHoodServos(currentHoodAnglePos);
             gate.setPosition(GATE_OPEN);
@@ -209,15 +210,15 @@ public class Shooter {
         shooterLeft .setPower(powerLeft);
         shooterRight.setPower(powerRight);
 
-        double velocityDrop = lastShooterVelocity - avgVelocity;
-        if (velocityDrop > LAUNCH_DROP_THRESHOLD && lastShooterVelocity > 0) {
-            cumulativeHoodDip += HOOD_DIP_AMOUNT;
+        // Detect sudden RPM drop (200+) between loops → dip hood down 0.05, cumulative
+        double avgRPMNow = avgVelocity * 60.0 / TICKS_PER_REV;
+        double lastRPM = lastShooterVelocity * 60.0 / TICKS_PER_REV;
+        if (lastRPM > 0 && (lastRPM - avgRPMNow) >= HOOD_DIP_RPM_THRESHOLD) {
+            currentHoodAnglePos = Math.max(MIN_HOOD_SERVO, currentHoodAnglePos - HOOD_DIP_AMOUNT);
         }
         lastShooterVelocity = avgVelocity;
 
-        // Apply hood with cumulative dip (gate stays at GATE_OPEN)
-        double effectiveHood = Math.max(MIN_HOOD_SERVO, currentHoodAnglePos - cumulativeHoodDip);
-        updateHoodServos(effectiveHood);
+        updateHoodServos(currentHoodAnglePos);
 
         double rpmL = shooterLeft .getVelocity() * 60.0 / TICKS_PER_REV;
         double rpmR = shooterRight.getVelocity() * 60.0 / TICKS_PER_REV;
@@ -227,8 +228,7 @@ public class Shooter {
         telemetry.addData("Actual RPM", String.format("L:%d  R:%d  Avg:%d", (int) rpmL, (int) rpmR, (int) avgRPM));
         telemetry.addData("RPM Error", String.format("%+d (%.1f%%)", (int) rpmError, (rpmError / Math.max(targetRPM, 1)) * 100));
         telemetry.addData("Shooter Power", String.format("%.2f / %.2f", powerLeft, powerRight));
-        telemetry.addData("Hood", String.format("base=%.2f  dip=%.2f  effective=%.2f", currentHoodAnglePos, cumulativeHoodDip, effectiveHood));
-        telemetry.addData("Vel Drop", String.format("%.1f ticks/s (threshold: %.1f)", velocityDrop, LAUNCH_DROP_THRESHOLD));
+        telemetry.addData("Hood Pos", String.format("%.2f", currentHoodAnglePos));
         telemetry.addData("Battery",  String.format("%.1f V", currentVoltage));
     }
 
@@ -240,7 +240,7 @@ public class Shooter {
         }
         lastHoodServoPos = position;
         hoodServo1.setPosition(position);
-        hoodServo2.setPosition(position);
+        hoodServo2.setPosition(1.0 - position);
     }
 
     public void updateFromLimelight(Telemetry telemetry) {
@@ -276,7 +276,7 @@ public class Shooter {
     public void updateFromOdometry(Follower follower, Telemetry telemetry) {
         Pose pose = follower.getPose();
         // Calculate distance from robot position to goal center
-        double distance = Math.hypot(pose.getX() - 132.0, pose.getY() - 132.0) * 0.0254;
+        double distance = Math.hypot(pose.getX() - MathLib.GOAL_CENTER_X, pose.getY() - MathLib.GOAL_CENTER_Y) * 0.0254;
         LauncherSolution solution = MathLib.distanceToLauncherValues(distance);
 
         if (solution.isValid()) {

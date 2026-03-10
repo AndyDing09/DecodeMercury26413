@@ -24,9 +24,9 @@ public final class MathLib {
     public static final double GOAL_LIP_X = 120.0;
     public static final double GOAL_LIP_Y = 120.0;
     public static final double GOAL_CENTER_X = 132.0;
-    public static final double GOAL_CENTER_Y = 132.0;
+    public static final double GOAL_CENTER_Y = 12.0;
     public static final double GOAL_BACK_X = 144.0;
-    public static final double GOAL_BACK_Y = 144.0;
+    public static final double GOAL_BACK_Y = 0.0;
 
     // ==================== GOAL GEOMETRY (meters) ====================
     public static final double GOAL_LIP = 0.45;
@@ -80,6 +80,7 @@ public final class MathLib {
      * Full ballistics solver given a horizontal distance to the goal in meters.
      */
     public static LauncherSolution distanceToLauncherValues(double distance) {
+        distance = interpolateToShootingDistance(distance);
         distance += DISTANCE_OFFSET;
         if (distance <= 0) {
             return new LauncherSolution(Double.NaN, Double.NaN);
