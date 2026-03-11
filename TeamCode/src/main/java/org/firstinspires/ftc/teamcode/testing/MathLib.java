@@ -233,9 +233,7 @@ public final class MathLib {
 
         return 0.0;
     }
-    // Make sure to define these arrays in your class, sorted from lowest to highest!
-    // private static final double[] THEORETICAL_DISTANCES = { ... };
-    // private static final double[] REAL_DISTANCES = { ... };
+
 
     public static double interpolateToShootingDistance(double theoreticalDistance) {
         // Handle out-of-bounds inputs by clamping to the lowest or highest known values

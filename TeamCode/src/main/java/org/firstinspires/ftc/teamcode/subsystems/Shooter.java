@@ -288,9 +288,15 @@ public class Shooter {
         }
 
         if (shooterOn && !shooterKilled && autoCalcEnabled) {
-            targetRPM = autoCalcRPM;
-            currentHoodAnglePos = autoCalcServoPos;
-            updateHoodServos(currentHoodAnglePos);
+            // Only update RPM if it changed by more than 50 to prevent PIDF from chasing noise
+            if (Math.abs(autoCalcRPM - targetRPM) > 50) {
+                targetRPM = autoCalcRPM;
+            }
+            // Only update hood if it changed meaningfully
+            if (Math.abs(autoCalcServoPos - currentHoodAnglePos) > 0.02) {
+                currentHoodAnglePos = autoCalcServoPos;
+                updateHoodServos(currentHoodAnglePos);
+            }
         }
 
         double dx = MathLib.GOAL_CENTER_X - pose.getX();

@@ -54,13 +54,24 @@ public class TeleOp2 extends LinearOpMode {
 
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
-        telemetry.addLine("Ready. Auto-calc shooter from odometry.");
-        telemetry.addData("Alliance", IS_RED_ALLIANCE ? "RED" : "BLUE");
-        telemetry.addData("Start Pose", String.format("(%.0f, %.0f) hdg=%.0f",
-                START_X, START_Y, START_HEADING));
-        telemetry.update();
+        // Init loop: press dpad_up for RED, dpad_down for BLUE on gamepad1
+        while (!isStarted() && !isStopRequested()) {
+            if (gamepad1.dpad_up) {
+                IS_RED_ALLIANCE = true;
+                turret.setAlliance(true);
+            }
+            if (gamepad1.dpad_down) {
+                IS_RED_ALLIANCE = false;
+                turret.setAlliance(false);
+            }
 
-        waitForStart();
+            telemetry.addLine("Ready. Auto-calc shooter from odometry.");
+            telemetry.addLine(">> DPAD UP = RED | DPAD DOWN = BLUE <<");
+            telemetry.addData("Alliance", IS_RED_ALLIANCE ? "RED" : "BLUE");
+            telemetry.addData("Start Pose", String.format("(%.0f, %.0f) hdg=%.0f",
+                    START_X, START_Y, START_HEADING));
+            telemetry.update();
+        }
 
         shooter.initControllers();
 
@@ -87,8 +98,7 @@ public class TeleOp2 extends LinearOpMode {
 
             shooter.updatePIDF(voltageSensor, telemetry);
 
-            // Turret update (includes manual control via right_stick_x)
-            turret.update(gamepad2.right_stick_x);
+            turret.update(gamepad2.left_stick_x);
 
             // Telemetry
             turret.addTelemetry(telemetry);
