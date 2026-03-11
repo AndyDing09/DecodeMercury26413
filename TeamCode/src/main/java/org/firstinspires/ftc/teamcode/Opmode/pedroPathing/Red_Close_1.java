@@ -20,7 +20,7 @@ import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 import org.firstinspires.ftc.teamcode.testing.PIDFMotorController;
 
 @Autonomous(name = "RC1", group = "Auto")
-public class Red_Close_15_1 extends LinearOpMode {
+public class Red_Close_1 extends LinearOpMode {
 
     // =======================
     // Hardware

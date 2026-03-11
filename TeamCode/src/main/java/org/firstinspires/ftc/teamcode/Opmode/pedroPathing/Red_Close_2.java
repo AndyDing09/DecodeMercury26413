@@ -19,7 +19,7 @@ import org.firstinspires.ftc.teamcode.Storedvalues.RobotPose;
 import org.firstinspires.ftc.teamcode.subsystems.Shooter;
 
 @Autonomous(name = "RC2", group = "Auto")
-public class Red_Close_15_2 extends LinearOpMode {
+public class Red_Close_2 extends LinearOpMode {
 
     // =======================
     // Hardware
