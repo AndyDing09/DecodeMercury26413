@@ -26,7 +26,7 @@ public class Red_Close_15_2 extends LinearOpMode {
     // =======================
     private DcMotor frontLeftDrive, backLeftDrive, frontRightDrive, backRightDrive;
     private DcMotor middleTransfer;
-    private DcMotor turret; // Turret motor for position locking during auto
+    // private DcMotor turret; // Turret motor for position locking during auto
     private VoltageSensor voltageSensor;
     private Servo transferBlocker;
     private Servo Gate; // Controlled locally for precise Auto timing
@@ -40,8 +40,8 @@ public class Red_Close_15_2 extends LinearOpMode {
     // Shooter Constants
     // =======================
     private static final double TARGET_RPM_INITIAL = 3450;
-    private static final double TARGET_RPM_NORMAL = 3750;
-    private static final double TARGET_RPM_FINAL  = 3450;
+    private static final double TARGET_RPM_NORMAL = 3550;
+    private static final double TARGET_RPM_FINAL  = 3350;
     private double activeTargetRPM = TARGET_RPM_INITIAL;
 
     // =======================
@@ -55,7 +55,7 @@ public class Red_Close_15_2 extends LinearOpMode {
     // =======================
     private static final double SERVO_HOME           = 0.5;
     private static final double TRANSFER_RESET_DELAY = 0.35;
-    private static final double INITIAL_SHOOT_SPEED = 0.25;
+    private static final double INITIAL_SHOOT_SPEED = 0.01;
     private static final double INTAKE_SPEED = 0.6;
 
     // =======================
@@ -70,11 +70,11 @@ public class Red_Close_15_2 extends LinearOpMode {
     private final Pose startPose         = new Pose(124, 124, Math.toRadians(45));
     private final Pose shootPose         = new Pose(96,  96,  Math.toRadians(45));
     private final Pose NormalShootPose   = new Pose(86, 82, Math.toRadians(47.5));
-    private final Pose FinalShootPose    = new Pose(84, 108, Math.toRadians(26.6));
+    private final Pose FinalShootPose    = new Pose(84, 108, Math.toRadians(28));
     private final Pose pickupPose2       = new Pose(102, 60,  Math.toRadians(0));
-    private final Pose Intake2End        = new Pose(134, 60,  Math.toRadians(0));
+    private final Pose Intake2End        = new Pose(132, 60,  Math.toRadians(0));
     private final Pose clearPose         = new Pose(122, 63,  Math.toRadians(0));
-    private final Pose pickFromClearPose = new Pose(135, 62,  Math.toRadians(37.5));
+    private final Pose pickFromClearPose = new Pose(133, 60,  Math.toRadians(37.5));
     private final Pose pickupPose1       = new Pose(102, 84,  Math.toRadians(0));
     private final Pose Intake1End        = new Pose(128, 84,  Math.toRadians(0));
     private final Pose intermediatePose1 = new Pose(108, 60,  Math.toRadians(22.5));
@@ -96,9 +96,9 @@ public class Red_Close_15_2 extends LinearOpMode {
     private int state = 0;
 
     private static final double SPINUP_TIME_1 = 0.275;
-    private static final double SPINUP_TIME_2 = 0.475;
+    private static final double SPINUP_TIME_2 = 0.275;
     private static final double SHOOT_TIME_1  = 0.45;
-    private static final double SHOOT_TIME_2  = 0.65;
+    private static final double SHOOT_TIME_2  = 0.45;
 
     @Override
     public void runOpMode() {
@@ -128,12 +128,12 @@ public class Red_Close_15_2 extends LinearOpMode {
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
 
         // ── Turret Lock Init ───────────────────────────────────────────────
-        turret = hardwareMap.get(DcMotor.class, "turret"); // use your actual hardware map name
-        turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        turret.setTargetPosition(0);
-        turret.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        turret.setPower(0.4); // Holds turret at center for entire auto — tune if needed
-        turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        // turret = hardwareMap.get(DcMotor.class, "turret"); // use your actual hardware map name
+        // turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+       //  turret.setTargetPosition(0);
+       //  turret.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+       //  turret.setPower(0.4); // Holds turret at center for entire auto — tune if needed
+       //  turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         // ── Subsystem Init ─────────────────────────────────────────────────
 
@@ -259,6 +259,7 @@ public class Red_Close_15_2 extends LinearOpMode {
                 middleTransfer.setPower(1.0);
                 follower.followPath(toShootFromStart, true);
                 middleTransfer.setPower(0.0);
+                Gate.setPosition(GATE_OPEN);
                 follower.setMaxPower(1.0);
                 setState(1);
                 break;
@@ -278,7 +279,6 @@ public class Red_Close_15_2 extends LinearOpMode {
 
             case 2:
                 if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME_1) {
-                    Gate.setPosition(GATE_OPEN);
                     middleTransfer.setPower(1.0);
                     setState(3);
                 }
@@ -493,7 +493,7 @@ public class Red_Close_15_2 extends LinearOpMode {
                     Gate.setPosition(GATE_CLOSED);
                     middleTransfer.setPower(0);
                     shooter.setHoodAnglePos(0.5);
-                    follower.followPath(toPark, true);
+                 //    follower.followPath(toPark, true);
                     setState(30);
                 }
                 break;
