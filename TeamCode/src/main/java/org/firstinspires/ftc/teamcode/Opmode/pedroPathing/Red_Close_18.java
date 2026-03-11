@@ -56,8 +56,8 @@ public class Red_Close_18 extends LinearOpMode {
     // =======================
     private static final double SERVO_HOME           = 0.5;
     private static final double TRANSFER_RESET_DELAY = 0.35;
-    private static final double INITIAL_SHOOT_SPEED = 0.01; // just for testing
-    private static final double INTAKE_SPEED = 0.6;
+    private static final double INITIAL_SHOOT_SPEED = 0.8; // just for testing
+    private static final double INTAKE_SPEED = 0.75;
 
     // =======================
     // Intake wait at pick pose
@@ -290,7 +290,6 @@ public class Red_Close_18 extends LinearOpMode {
                     follower.setMaxPower(INTAKE_SPEED);
                     Gate.setPosition(GATE_CLOSED);
                     follower.followPath(toPickup2End, true);
-                    follower.setMaxPower(1.0);
                     setState(4);
                 }
                 break;
@@ -298,6 +297,7 @@ public class Red_Close_18 extends LinearOpMode {
             // ── RAPID INTAKE ──────────────────────────────────────────────
             case 4:
                 if (!follower.isBusy()) {
+                    follower.setMaxPower(1.0);
                     middleTransfer.setPower(0);
                     follower.followPath(toShootFromPickup2, true);
                     setState(5);
@@ -480,7 +480,6 @@ public class Red_Close_18 extends LinearOpMode {
                     middleTransfer.setPower(1.0);
                     follower.setMaxPower(INTAKE_SPEED);
                     follower.followPath(toPickup1, true);
-                    follower.setMaxPower(1.0);
                     setState(29);
                 }
                 break;
@@ -488,6 +487,7 @@ public class Red_Close_18 extends LinearOpMode {
             // ── SIXTH PICKUP CYCLE (pickup1 sweep) ────────────────────────
             case 29:
                 if (!follower.isBusy()) {
+                    follower.setMaxPower(1.0);
                     follower.followPath(toShootFromPickup1, true);
                     activeTargetRPM = TARGET_RPM_FINAL;
                     setState(30);
