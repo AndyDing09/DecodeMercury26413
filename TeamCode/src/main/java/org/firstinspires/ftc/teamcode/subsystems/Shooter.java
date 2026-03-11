@@ -60,10 +60,10 @@ public class Shooter {
 
     private double targetRPM = 0;
     private double kP_shooter, kI_shooter, kD_shooter, kF_shooter;
-    public static double kP_shooter_low  = 0.00002;
-    public static double kI_shooter_low  = 0.00003;
-    public static double kD_shooter_low  = 0.00008;
-    public static double kF_shooter_low  = 0.00040;
+    public static double kP_shooter_low  = 0.000026;
+    public static double kI_shooter_low  = 0.00002;
+    public static double kD_shooter_low  = 0.0000;
+    public static double kF_shooter_low  = 0.0004;
     public static double kP_shooter_high = 0.00012;
     public static double kI_shooter_high = 0.00003;
     public static double kD_shooter_high = 0.00008;
@@ -192,7 +192,7 @@ public class Shooter {
             return;
         }
 
-        if (targetRPM >= 3600) {
+        if (targetRPM >= 4000) {
             kP_shooter = kP_shooter_high; kI_shooter = kI_shooter_high;
             kD_shooter = kD_shooter_high; kF_shooter = kF_shooter_high;
         } else {

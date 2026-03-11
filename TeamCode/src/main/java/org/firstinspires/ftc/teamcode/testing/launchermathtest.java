@@ -5,6 +5,8 @@ import static org.firstinspires.ftc.teamcode.testing.MathLib.interpolateToShooti
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
+import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -12,6 +14,8 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
+
+import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 
 @Config
 @TeleOp(name="LauncherMathTest", group="Testing")
@@ -33,6 +37,8 @@ public class launchermathtest extends LinearOpMode {
 
     // ================= PHYSICS & DISTANCE VARIABLES =================
     private double targetDistance = 2.0; // Start at 2 meters
+    private Follower follower;
+    private boolean useOdometry = true;
 
     // IMPORTANT: Make sure these match your robot's physical dimensions!
     private static final double GRAVITY = 9.81;
@@ -73,7 +79,8 @@ public class launchermathtest extends LinearOpMode {
 
     // Ticks per revolution (used for RPM telemetry calculation)
     private static final double TICKS_PER_REV = 28.0;
-    // Max motor velocity in ticks/sec (28 ticks/rev * ~4800 RPM / 60)
+
+    private final Pose startPose         = new Pose(72, 72, Math.toRadians(0));
 
     // Gamepad 1 Edge Detection
     private boolean lastG1DpadUp = false, lastG1DpadDown = false;
@@ -82,10 +89,10 @@ public class launchermathtest extends LinearOpMode {
 
     // ================= SHOOTER PIDF (uses PIDFMotorController, same as TeleOp2) =================
     // Aggressive gains for fast recovery after ball launch
-    public static double kP = 0.00001;
+    public static double kP = 0.00002;
     public static double kI = 0.00002;
     public static double kD = 0.0000;
-    public static double kF = 0.00043;
+    public static double kF = 0.0004;
 
     private PIDFMotorController leftController  = null;
     private PIDFMotorController rightController = null;
@@ -106,6 +113,9 @@ public class launchermathtest extends LinearOpMode {
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
         hoodServo1 = hardwareMap.servo.get("angleChange1");
         hoodServo2 = hardwareMap.servo.get("angleChange2");
+
+//        follower = new Follower(hardwareMap);
+//        follower.start();
 
         shooterLeft.setDirection(DcMotorSimple.Direction.REVERSE);
         shooterRight.setDirection(DcMotorSimple.Direction.FORWARD);
@@ -133,7 +143,7 @@ public class launchermathtest extends LinearOpMode {
         telemetry.addLine("Physics Shooter Initialized");
         telemetry.addLine("--- GAMEPAD 1 ---");
         telemetry.addLine("D-Pad Up/Down: +/- 0.1m | Bumpers: +/- 0.5m");
-        telemetry.addLine("Y/X: +/- 1 deg hood | A: Off | B: Reset 2.0m");
+        telemetry.addLine("Y/X: +/- 1 deg hood | A: Odometry | B: Reset 2.0m");
         telemetry.addData("Max Reachable Hood", "%.1f deg", MAX_REACHABLE_HOOD_ANGLE);
         telemetry.addLine("--- GAMEPAD 2 (TUNING) ---");
         telemetry.addLine("D-Pad L/R: Select P,I,D,F | U/D: Adjust");
@@ -143,8 +153,11 @@ public class launchermathtest extends LinearOpMode {
 
         leftController  = new PIDFMotorController(kP, kI, kD, kF, TICKS_PER_REV);
         rightController = new PIDFMotorController(kP, kI, kD, kF, TICKS_PER_REV);
-
+        follower = Constants.createFollower(hardwareMap);
+        follower.setStartingPose(startPose);
         while (opModeIsActive()) {
+
+            follower.update();
 
             // ================= GAMEPAD 2: INTAKE (circle) + GATE (triangle) =================
             boolean curG2Circle = gamepad2.circle;
@@ -167,19 +180,25 @@ public class launchermathtest extends LinearOpMode {
             boolean currentG1RightBumper = gamepad1.right_bumper;
             boolean currentG1LeftBumper = gamepad1.left_bumper;
 
-            if (currentG1DpadUp && !lastG1DpadUp) { targetDistance += 0.1; manualHoodOverride = false; }
-            if (currentG1DpadDown && !lastG1DpadDown) { targetDistance -= 0.1; manualHoodOverride = false; }
-            if (currentG1RightBumper && !lastG1RightBumper) { targetDistance += 0.5; manualHoodOverride = false; }
-            if (currentG1LeftBumper && !lastG1LeftBumper) { targetDistance -= 0.5; manualHoodOverride = false; }
+            if (currentG1DpadUp && !lastG1DpadUp) { targetDistance += 0.1; manualHoodOverride = false; useOdometry = false; }
+            if (currentG1DpadDown && !lastG1DpadDown) { targetDistance -= 0.1; manualHoodOverride = false; useOdometry = false; }
+            if (currentG1RightBumper && !lastG1RightBumper) { targetDistance += 0.5; manualHoodOverride = false; useOdometry = false; }
+            if (currentG1LeftBumper && !lastG1LeftBumper) { targetDistance -= 0.5; manualHoodOverride = false; useOdometry = false; }
 
-            if (gamepad1.a) { targetDistance = 0; manualHoodOverride = false; }
-            if (gamepad1.b) { targetDistance = 2.0; manualHoodOverride = false; }
+            if (gamepad1.a) { useOdometry = true; manualHoodOverride = false; }
+            if (gamepad1.b) { targetDistance = 2.0; manualHoodOverride = false; useOdometry = false; }
 
             if (targetDistance < 0) targetDistance = 0;
 
             if (targetDistance == 0) {
                 if (leftController != null) leftController.reset();
                 if (rightController != null) rightController.reset();
+            }
+
+            if (useOdometry) {
+                Pose pose = follower.getPose();
+                // Calculate distance from robot position to goal center
+                targetDistance = Math.hypot(pose.getX() - MathLib.GOAL_CENTER_X, pose.getY() - MathLib.GOAL_CENTER_Y) * MathLib.INCHES_TO_METERS;
             }
 
             // ================= GAMEPAD 1: HOOD ANGLE CONTROL =================
@@ -290,7 +309,7 @@ public class launchermathtest extends LinearOpMode {
 
             // ================= TELEMETRY =================
             double targetRPM = targetVelocityTicks * 60.0 / TICKS_PER_REV;
-            telemetry.addData("1. Target Distance (m)", "%.2f", targetDistance);
+            telemetry.addData("1. Target Distance (m)", "%.2f %s", targetDistance, useOdometry ? "(ODO)" : "(MANUAL)");
 
             if (Double.isNaN(requiredVelocityMS)) {
                 telemetry.addData("2. Physics Result", "IMPOSSIBLE SHOT!");
