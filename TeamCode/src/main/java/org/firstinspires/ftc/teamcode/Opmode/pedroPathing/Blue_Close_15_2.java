@@ -17,7 +17,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
-import org.firstinspires.ftc.teamcode.subsystems.Turret;
+// import org.firstinspires.ftc.teamcode.subsystems.Turret;
 import org.firstinspires.ftc.teamcode.testing.PIDFMotorController;
 
 @Autonomous(name = "RC2", group = "Auto")
@@ -34,7 +34,7 @@ public class Blue_Close_15_2 extends LinearOpMode {
     private Servo transferBlocker;
     private Servo hoodServo1, hoodServo2;
 
-    private Turret turret;
+    // private Turret turret;
     private com.qualcomm.robotcore.util.ElapsedTime matchTimer = new com.qualcomm.robotcore.util.ElapsedTime();
     private static final double TURRET_START_DELAY = 2.0;
 
@@ -172,7 +172,7 @@ public class Blue_Close_15_2 extends LinearOpMode {
         transferBlocker.setPosition(SERVO_HOME);
 
         // ── Turret Init ──
-        turret = new Turret(hardwareMap);
+     //    turret = new Turret(hardwareMap);
 
         // ── PIDF Controllers (matched to shooterspeedTest gains) ──
         leftController  = new PIDFMotorController(kP_shooter, kI_shooter, kD_shooter, kF_shooter, TICKS_PER_REV);
@@ -257,7 +257,7 @@ public class Blue_Close_15_2 extends LinearOpMode {
             follower.update();
             updateShooter();
             if (matchTimer.seconds() >= TURRET_START_DELAY) {
-                turret.update();
+    //             turret.update();
             }
             updateStateMachine();
 
@@ -280,7 +280,7 @@ public class Blue_Close_15_2 extends LinearOpMode {
         shooterLeft.setPower(0);
         shooterRight.setPower(0);
         middleTransfer.setPower(0);
-        turret.stop();
+ //        turret.stop();
         Gate.setPosition(GATE_CLOSED);
     }
 
