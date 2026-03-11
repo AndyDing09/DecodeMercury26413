@@ -55,7 +55,7 @@ public class Red_Close_15_2 extends LinearOpMode {
     // =======================
     private static final double SERVO_HOME           = 0.5;
     private static final double TRANSFER_RESET_DELAY = 0.35;
-    private static final double INITIAL_SHOOT_SPEED = 0.01;
+    private static final double INITIAL_SHOOT_SPEED = 0.01; // just for testing
     private static final double INTAKE_SPEED = 0.6;
 
     // =======================
