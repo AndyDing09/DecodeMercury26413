@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.Storedvalues;
 
+import com.pedropathing.control.PIDFCoefficients;
+import com.pedropathing.control.PredictiveBrakingCoefficients;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.FollowerConstants;
 import com.pedropathing.ftc.FollowerBuilder;
@@ -32,8 +34,10 @@ public class Constants {
             .leftRearMotorDirection(DcMotorSimple.Direction.REVERSE)
             .rightFrontMotorDirection(DcMotorSimple.Direction.FORWARD)
             .rightRearMotorDirection(DcMotorSimple.Direction.FORWARD)
-            .xVelocity(72.012)
-            .yVelocity(57.342);
+            .xVelocity(78.009)
+            .yVelocity(60.41)
+
+            ;
 
 
     // ================================================================
@@ -42,9 +46,12 @@ public class Constants {
     public static FollowerConstants followerConstants = new FollowerConstants()
             .mass(12.7)
             .forwardZeroPowerAcceleration(-30.703)
-            .lateralZeroPowerAcceleration(-64.97);
+            .lateralZeroPowerAcceleration(-64.97)
+            .predictiveBrakingCoefficients(new PredictiveBrakingCoefficients(0.3, 0.108403, 0.001407))
+            .headingPIDFCoefficients(new PIDFCoefficients(2.25, 0, 0.23, 0.02)) // 1. increase f until oscillations then decrease  2. increase p(push it high - 2) and d(matching p so that when robot corrects itself it doesn overshoot)   3. i=0
+            ;
 
-    public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 1, 1);
+    public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 2.25, 1);
 
     public static Follower createFollower(HardwareMap hardwareMap) {
         return new FollowerBuilder(followerConstants, hardwareMap)

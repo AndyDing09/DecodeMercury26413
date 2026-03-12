@@ -39,9 +39,9 @@ public class Red_Close_18_Curves extends LinearOpMode {
     // =======================
     // Shooter Constants
     // =======================
-    private static final double TARGET_RPM_INITIAL = 3535;
-    private static final double TARGET_RPM_NORMAL = 3500;
-    private static final double TARGET_RPM_FINAL  = 3375;
+    private static final double TARGET_RPM_INITIAL = 3545;
+    private static final double TARGET_RPM_NORMAL = 3060;
+    private static final double TARGET_RPM_FINAL  = 3135;
     private double activeTargetRPM = TARGET_RPM_INITIAL;
 
     // =======================
@@ -65,20 +65,20 @@ public class Red_Close_18_Curves extends LinearOpMode {
     // =======================
     // Poses (Unchanged)
     // =======================
-    private final Pose startPose         = new Pose(124, 124, Math.toRadians(45));
-    private final Pose InitialShootPose  = new Pose(96,  96,  Math.toRadians(45));
-    private final Pose NormalShootPose   = new Pose(96, 86, Math.toRadians(52));
-    private final Pose FinalShootPose    = new Pose(100, 120, Math.toRadians(27));
-    private final Pose pickupPose2       = new Pose(102, 60,  Math.toRadians(0));
-    private final Pose Intake2End        = new Pose(128, 60,  Math.toRadians(0));
+    private final Pose startPose         = new Pose(123.5, 123, Math.toRadians(43));
+    private final Pose InitialShootPose  = new Pose(97,  97,  Math.toRadians(46));
+    private final Pose NormalShootPose   = new Pose(98, 86, Math.toRadians(54));
+    private final Pose FinalShootPose    = new Pose(86, 120, Math.toRadians(23.25));
+    private final Pose Intake2End        = new Pose(140, 60,  Math.toRadians(0));
     private final Pose clearPose         = new Pose(122, 65,  Math.toRadians(0));
-    private final Pose pickFromClearPose = new Pose(133.5, 62.5,  Math.toRadians(37.5));
+    private final Pose pickFromClearPose = new Pose(138.6, 59.5,  Math.toRadians(35.5));
     private final Pose pickupPose1       = new Pose(102, 84,  Math.toRadians(0));
-    private final Pose Intake1End        = new Pose(127, 84,  Math.toRadians(0));
+    private final Pose IntermediatePosePickup1 = new Pose(100, 82, Math.toRadians(0));
+    private final Pose Intake1End        = new Pose(131, 84,  Math.toRadians(0));
     private final Pose intermediatePose1 = new Pose(108, 60,  Math.toRadians(22.5));
     private final Pose intermediatePose2 = new Pose(102, 66,  Math.toRadians(22.5));
-    private final Pose intermediatePosePickup2 = new Pose(100, 56, Math.toRadians(15));
-    private final Pose parkPose          = new Pose(118, 68,  Math.toRadians(0));
+    private final Pose intermediatePosePickup2 = new Pose(94, 50, Math.toRadians(15));
+    // private final Pose parkPose          = new Pose(118, 68,  Math.toRadians(0));
 
     // =======================
     // PedroPathing
@@ -88,6 +88,7 @@ public class Red_Close_18_Curves extends LinearOpMode {
     private PathChain toShootFromStart, toPickup2, toShootFromPickup2;
     private PathChain toClear, toPickFromClear, toShootFromPickFromClear;
     private PathChain toPickup1, toShootFromPickup1, toPark;
+    private PathChain toPickFromClearDirect; // NEW: shoots straight to pickFromClearPose
 
     // =======================
     // State Machine
@@ -95,7 +96,7 @@ public class Red_Close_18_Curves extends LinearOpMode {
     private final Timer actionTimer = new Timer();
     private int state = 0;
 
-    private static final double SPINUP_TIME = 0.2;
+    private static final double SPINUP_TIME = 0.001;
     private static final double SHOOT_TIME  = 0.425;
 
     @Override
@@ -157,13 +158,14 @@ public class Red_Close_18_Curves extends LinearOpMode {
                 .build();
 
         toShootFromPickup2 = follower.pathBuilder()
-                .addPath(new BezierCurve(Intake2End, intermediatePose1, NormalShootPose))
-                .setLinearHeadingInterpolation(Intake2End.getHeading(), NormalShootPose.getHeading())
+                .addPath(new BezierCurve(Intake2End, intermediatePose1, InitialShootPose))
+                .setLinearHeadingInterpolation(Intake2End.getHeading(), InitialShootPose.getHeading())
                 .build();
 
+        // OLD: shoot → clearPose (kept for reference, no longer used in state machine)
         toClear = follower.pathBuilder()
-                .addPath(new BezierCurve(NormalShootPose, intermediatePose2, clearPose))
-                .setLinearHeadingInterpolation(NormalShootPose.getHeading(), clearPose.getHeading())
+                .addPath(new BezierCurve(InitialShootPose, intermediatePose2, clearPose))
+                .setLinearHeadingInterpolation(InitialShootPose.getHeading(), clearPose.getHeading())
                 .build();
 
         toPickFromClear = follower.pathBuilder()
@@ -171,25 +173,33 @@ public class Red_Close_18_Curves extends LinearOpMode {
                 .setLinearHeadingInterpolation(clearPose.getHeading(), pickFromClearPose.getHeading())
                 .build();
 
+        // NEW: direct path from NormalShootPose straight to pickFromClearPose
+        toPickFromClearDirect = follower.pathBuilder()
+                .addPath(new BezierCurve(InitialShootPose, intermediatePose2, pickFromClearPose))
+                .setLinearHeadingInterpolation(InitialShootPose.getHeading(), pickFromClearPose.getHeading())
+                .build();
+
         toShootFromPickFromClear = follower.pathBuilder()
-                .addPath(new BezierCurve(pickFromClearPose, intermediatePose1, NormalShootPose))
-                .setLinearHeadingInterpolation(pickFromClearPose.getHeading(), NormalShootPose.getHeading())
+                .addPath(new BezierCurve(pickFromClearPose, intermediatePose1, InitialShootPose))
+                .setLinearHeadingInterpolation(pickFromClearPose.getHeading(), InitialShootPose.getHeading())
                 .build();
 
         toPickup1 = follower.pathBuilder()
-                .addPath(new BezierCurve(NormalShootPose, pickupPose1, Intake1End))
-                .setLinearHeadingInterpolation(NormalShootPose.getHeading(), Intake1End.getHeading())
+                .addPath(new BezierCurve(InitialShootPose, IntermediatePosePickup1, Intake1End))
+                .setLinearHeadingInterpolation(InitialShootPose.getHeading(), Intake1End.getHeading())
                 .build();
 
         toShootFromPickup1 = follower.pathBuilder()
                 .addPath(new BezierLine(Intake1End, FinalShootPose))
                 .setLinearHeadingInterpolation(Intake1End.getHeading(), FinalShootPose.getHeading())
                 .build();
-
+/*
         toPark = follower.pathBuilder()
                 .addPath(new BezierLine(FinalShootPose, parkPose))
                 .setLinearHeadingInterpolation(FinalShootPose.getHeading(), parkPose.getHeading())
                 .build();
+
+ */
 
         telemetry.addLine("✅ Initialized");
         telemetry.update();
@@ -249,11 +259,11 @@ public class Red_Close_18_Curves extends LinearOpMode {
                 break;
 
             case 1:
-                double driveElapsed = actionTimer.getElapsedTimeSeconds();
-                double rampDuration = 1.0;
-                double t = Math.min(1.0, driveElapsed / rampDuration);
+               //  double driveElapsed = actionTimer.getElapsedTimeSeconds();
+               //  double rampDuration = 1.0;
+               //  double t = Math.min(1.0, driveElapsed / rampDuration);
 
-                shooter.setHoodAnglePos(0.5 - (t * 0.02));
+               //  shooter.setHoodAnglePos(0.5 - (t * 0.02));
 
                 if (!follower.isBusy()) {
                     setState(2);
@@ -270,7 +280,7 @@ public class Red_Close_18_Curves extends LinearOpMode {
             case 3:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME) {
                     Gate.setPosition(GATE_CLOSED);
-                    shooter.setHoodAnglePos(0.5);
+                //     shooter.setHoodAnglePos(0.5);
                     activeTargetRPM = TARGET_RPM_NORMAL;
                     // Single BezierCurve to Intake2End — intake on for the entire path
                     middleTransfer.setPower(1.0);
@@ -290,7 +300,7 @@ public class Red_Close_18_Curves extends LinearOpMode {
             // ── RETURN TO SHOOT POSE FROM PICKUP2 ────────────────────────
             case 5:
                 if (!follower.isBusy()) {
-                    middleTransfer.setPower(0);
+                    // middleTransfer.setPower(0);
                     setState(6);
                 }
                 break;
@@ -307,14 +317,15 @@ public class Red_Close_18_Curves extends LinearOpMode {
             case 7:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME) {
                     Gate.setPosition(GATE_CLOSED);
-                    shooter.setHoodAnglePos(0.5);
-                    follower.followPath(toClear, true);
-                    middleTransfer.setPower(0);
+              //       shooter.setHoodAnglePos(0.5);
+                    // Drive directly from shoot pose to pickFromClearPose (skipping clearPose)
+               //      middleTransfer.setPower(1.0);
+                    follower.followPath(toPickFromClearDirect, true);
                     setState(8);
                 }
                 break;
 
-            // ── THIRD PICKUP CYCLE (1st clear→pickFromClear→shoot) ────────
+            // ── THIRD PICKUP CYCLE (1st direct shoot→pickFromClear→shoot) ─
             case 8:
                 if (!follower.isBusy()) {
                     setState(9);
@@ -322,188 +333,151 @@ public class Red_Close_18_Curves extends LinearOpMode {
                 break;
 
             case 9:
-                if (actionTimer.getElapsedTimeSeconds() >= WAIT_AT_GATE) {
-                    middleTransfer.setPower(1.0);
-                    follower.followPath(toPickFromClear, true);
+                if (actionTimer.getElapsedTimeSeconds() >= PICK_FROM_CLEAR_SECONDS) {
+                    follower.followPath(toShootFromPickFromClear, true);
                     setState(10);
                 }
                 break;
 
             case 10:
                 if (!follower.isBusy()) {
+              //       middleTransfer.setPower(0);
                     setState(11);
                 }
                 break;
 
             case 11:
-                if (actionTimer.getElapsedTimeSeconds() >= PICK_FROM_CLEAR_SECONDS) {
-                    follower.followPath(toShootFromPickFromClear, true);
+                if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME) {
+                    Gate.setPosition(GATE_OPEN);
                     setState(12);
                 }
                 break;
 
             case 12:
-                if (!follower.isBusy()) {
+                if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME) {
+                    Gate.setPosition(GATE_CLOSED);
+               //      shooter.setHoodAnglePos(0.5);
+                    // Drive directly from shoot pose to pickFromClearPose (skipping clearPose)
+                    middleTransfer.setPower(1.0);
+                    follower.followPath(toPickFromClearDirect, true);
                     setState(13);
                 }
                 break;
 
+            // ── FOURTH PICKUP CYCLE (2nd direct shoot→pickFromClear→shoot) ─
             case 13:
-                if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME) {
-                    Gate.setPosition(GATE_OPEN);
+                if (!follower.isBusy()) {
                     setState(14);
                 }
                 break;
 
             case 14:
-                if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME) {
-                    Gate.setPosition(GATE_CLOSED);
-                    shooter.setHoodAnglePos(0.5);
-                    follower.followPath(toClear, true);
-                    middleTransfer.setPower(0);
+                if (actionTimer.getElapsedTimeSeconds() >= PICK_FROM_CLEAR_SECONDS) {
+                    follower.followPath(toShootFromPickFromClear, true);
                     setState(15);
                 }
                 break;
 
-            // ── FOURTH PICKUP CYCLE (2nd clear→pickFromClear→shoot) ───────
             case 15:
                 if (!follower.isBusy()) {
+            //         middleTransfer.setPower(0);
                     setState(16);
                 }
                 break;
 
             case 16:
-                if (actionTimer.getElapsedTimeSeconds() >= WAIT_AT_GATE) {
-                    middleTransfer.setPower(1.0);
-                    follower.followPath(toPickFromClear, true);
+                if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME) {
+                    Gate.setPosition(GATE_OPEN);
                     setState(17);
                 }
                 break;
 
             case 17:
-                if (!follower.isBusy()) {
+                if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME) {
+                    Gate.setPosition(GATE_CLOSED);
+             //        shooter.setHoodAnglePos(0.5);
+                    // Drive directly from shoot pose to pickFromClearPose (skipping clearPose)
+                    middleTransfer.setPower(1.0);
+                    follower.followPath(toPickFromClearDirect, true);
                     setState(18);
                 }
                 break;
 
+            // ── FIFTH PICKUP CYCLE (3rd direct shoot→pickFromClear→shoot) ─
             case 18:
-                if (actionTimer.getElapsedTimeSeconds() >= PICK_FROM_CLEAR_SECONDS) {
-                    follower.followPath(toShootFromPickFromClear, true);
+                if (!follower.isBusy()) {
                     setState(19);
                 }
                 break;
 
             case 19:
-                if (!follower.isBusy()) {
+                if (actionTimer.getElapsedTimeSeconds() >= PICK_FROM_CLEAR_SECONDS) {
+                    follower.followPath(toShootFromPickFromClear, true);
                     setState(20);
                 }
                 break;
 
             case 20:
-                if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME) {
-                    Gate.setPosition(GATE_OPEN);
+                if (!follower.isBusy()) {
+           //          middleTransfer.setPower(0);
                     setState(21);
                 }
                 break;
 
             case 21:
-                if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME) {
-                    Gate.setPosition(GATE_CLOSED);
-                    shooter.setHoodAnglePos(0.5);
-                    follower.followPath(toClear, true);
-                    middleTransfer.setPower(0);
+                if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME) {
+                    Gate.setPosition(GATE_OPEN);
                     setState(22);
                 }
                 break;
 
-            // ── FIFTH PICKUP CYCLE (3rd clear→pickFromClear→shoot) ────────
             case 22:
-                if (!follower.isBusy()) {
+                if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME) {
+                    Gate.setPosition(GATE_CLOSED);
+          //           shooter.setHoodAnglePos(0.5);
+                    // Launch the single Bezier curve with intake running
+                    middleTransfer.setPower(1.0);
+                    follower.followPath(toPickup1, true);
                     setState(23);
                 }
                 break;
 
+            // ── SIXTH PICKUP CYCLE (pickup1 sweep) ────────────────────────
             case 23:
-                if (actionTimer.getElapsedTimeSeconds() >= WAIT_AT_GATE) {
-                    middleTransfer.setPower(1.0);
-                    follower.followPath(toPickFromClear, true);
+                if (!follower.isBusy()) {
+                    follower.followPath(toShootFromPickup1, true);
+                    activeTargetRPM = TARGET_RPM_FINAL;
                     setState(24);
                 }
                 break;
 
             case 24:
                 if (!follower.isBusy()) {
+            //         middleTransfer.setPower(0);
                     setState(25);
                 }
                 break;
 
             case 25:
-                if (actionTimer.getElapsedTimeSeconds() >= PICK_FROM_CLEAR_SECONDS) {
-                    follower.followPath(toShootFromPickFromClear, true);
+                if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME) {
+                    Gate.setPosition(GATE_OPEN);
+                    middleTransfer.setPower(1.0);
                     setState(26);
                 }
                 break;
 
             case 26:
-                if (!follower.isBusy()) {
+                if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME) {
+                    Gate.setPosition(GATE_CLOSED);
+                    middleTransfer.setPower(0);
+          //           shooter.setHoodAnglePos(0.5);
+                    //    follower.followPath(toPark, true);
                     setState(27);
                 }
                 break;
 
-            case 27:
-                if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME) {
-                    Gate.setPosition(GATE_OPEN);
-                    setState(28);
-                }
-                break;
-
-            case 28:
-                if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME) {
-                    Gate.setPosition(GATE_CLOSED);
-                    shooter.setHoodAnglePos(0.5);
-                    // Launch the single Bezier curve with intake running
-                    middleTransfer.setPower(1.0);
-                    follower.followPath(toPickup1, true);
-                    setState(29);
-                }
-                break;
-
-            // ── SIXTH PICKUP CYCLE (pickup1 sweep) ────────────────────────
-            case 29:
-                if (!follower.isBusy()) {
-                    follower.followPath(toShootFromPickup1, true);
-                    activeTargetRPM = TARGET_RPM_FINAL;
-                    setState(30);
-                }
-                break;
-
-            case 30:
-                if (!follower.isBusy()) {
-                    middleTransfer.setPower(0);
-                    setState(31);
-                }
-                break;
-
-            case 31:
-                if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME) {
-                    Gate.setPosition(GATE_OPEN);
-                    middleTransfer.setPower(1.0);
-                    setState(32);
-                }
-                break;
-
-            case 32:
-                if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME) {
-                    Gate.setPosition(GATE_CLOSED);
-                    middleTransfer.setPower(0);
-                    shooter.setHoodAnglePos(0.5);
-                    //    follower.followPath(toPark, true);
-                    setState(33);
-                }
-                break;
-
             // ── PARK ─────────────────────────────────────────────────────
-            case 33:
+            case 27:
                 if (!follower.isBusy()) {
                     setState(-1);
                 }
