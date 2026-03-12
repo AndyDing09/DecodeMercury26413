@@ -28,11 +28,11 @@ public class TeleOp2 extends LinearOpMode {
     private Follower follower;
     private VoltageSensor voltageSensor;
 
-    // Toggle this variable in Dashboard to switch fields
-    public static boolean IS_RED_ALLIANCE = true;
+    private volatile double manualTurretPower = 0;
 
-    public static double START_X = 72;
-    public static double START_Y = 72;
+    public static boolean IS_RED_ALLIANCE = true;
+    public static double START_X = 0;
+    public static double START_Y = 0;
     public static double START_HEADING = 0;
 
     @Override
@@ -42,7 +42,6 @@ public class TeleOp2 extends LinearOpMode {
         shooter       = new Shooter(hardwareMap);
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
 
-        // Initialize the correct Turret based on the alliance variable
         if (IS_RED_ALLIANCE) {
             turret = new TurretRed(hardwareMap);
         } else {
@@ -54,7 +53,6 @@ public class TeleOp2 extends LinearOpMode {
 
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
-        // Init loop: press dpad_up for RED, dpad_down for BLUE on gamepad1
         while (!isStarted() && !isStopRequested()) {
             if (gamepad1.dpad_up) {
                 IS_RED_ALLIANCE = true;
@@ -64,7 +62,6 @@ public class TeleOp2 extends LinearOpMode {
                 IS_RED_ALLIANCE = false;
                 turret.setAlliance(false);
             }
-
             telemetry.addLine("Ready. Auto-calc shooter from odometry.");
             telemetry.addLine(">> DPAD UP = RED | DPAD DOWN = BLUE <<");
             telemetry.addData("Alliance", IS_RED_ALLIANCE ? "RED" : "BLUE");
@@ -75,32 +72,30 @@ public class TeleOp2 extends LinearOpMode {
 
         shooter.initControllers();
 
+        // Turret runs on its own thread, unaffected by main loop speed
+        Thread turretThread = new Thread(() -> {
+            while (opModeIsActive()) {
+                turret.update(manualTurretPower);
+            }
+        });
+        turretThread.start();
+
         while (opModeIsActive()) {
-            // Update odometry (Pinpoint reads pods directly, no motor conflict)
             follower.update();
 
-            // Drive
             drivetrain.drive(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
 
-            if (gamepad2.a) {
-                turret.resetEncoder();
-            }
+            manualTurretPower = gamepad2.right_stick_x;
 
-            // Intake
+            if (gamepad2.a) turret.resetEncoder();
+
             intake.update(gamepad1.circle, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
 
-            // Shooter input + outtake sequence
             shooter.handleShooterInput(gamepad1.left_bumper, gamepad1.right_bumper, gamepad1.triangle, intake);
             shooter.updateOuttakeSequence(intake, voltageSensor);
-
-            // Auto-calc RPM and hood from odometry (overrides when shooter is on)
-            shooter.updateFromOdometry(follower,telemetry);
-
+            shooter.updateFromOdometry(follower, telemetry);
             shooter.updatePIDF(voltageSensor, telemetry);
 
-            turret.update(gamepad2.left_stick_x);
-
-            // Telemetry
             turret.addTelemetry(telemetry);
             telemetry.addData("Shooter RPM", (int) shooter.getTargetRPM());
             telemetry.addData("Hood Pos", String.format("%.3f", shooter.getHoodAnglePos()));
