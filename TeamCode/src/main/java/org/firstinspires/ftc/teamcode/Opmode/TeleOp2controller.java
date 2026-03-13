@@ -18,8 +18,8 @@ import org.firstinspires.ftc.teamcode.subsystems.TurretRed;
 import org.firstinspires.ftc.teamcode.testing.TurretBlue;
 
 @Config
-@TeleOp(name = "TeleOp Main 1", group = "TeleOp")
-public class TeleOp2 extends LinearOpMode {
+@TeleOp(name = "TeleOp Main 2", group = "TeleOp")
+public class TeleOp2controller extends LinearOpMode {
 
     private Drivetrain drivetrain;
     private Intake intake;
@@ -85,13 +85,13 @@ public class TeleOp2 extends LinearOpMode {
 
             drivetrain.drive(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
 
-            manualTurretPower = gamepad2.right_stick_x;
+            manualTurretPower = gamepad1.right_stick_x;
 
-            if (gamepad2.a) turret.resetEncoder();
+            if (gamepad1.a) turret.resetEncoder();
 
-            intake.update(gamepad1.circle, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
+            intake.update(gamepad2.circle, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
 
-            shooter.handleShooterInput(gamepad1.left_bumper, gamepad1.right_bumper, gamepad1.triangle, intake);
+            shooter.handleShooterInput(gamepad2.left_bumper, gamepad2.x, gamepad2.right_bumper, intake);
             shooter.updateOuttakeSequence(intake, voltageSensor);
             shooter.updateFromOdometry(follower, telemetry);
             shooter.updatePIDF(voltageSensor, telemetry);
