@@ -546,8 +546,13 @@ public class Shooter {
 
 
     public void handleShooterInput(boolean leftBumper, boolean rightBumper, boolean triangle, Intake intake) {
+        /*
         telemetry.addData("g2.a", rightBumper);
         telemetry.addData("lastRightBumper", lastRightBumper);
+        telemetry.addData("lastRightBumper", lastRightBumper);
+        telemetry.addData("rightBumper block fired", rightBumper && !lastRightBumper);
+
+         */
         if (triangle && !lastTriangle) {
             gate.setPosition(GATE_CLOSED);
             outtakeState = OuttakeState.IDLE;
@@ -585,6 +590,12 @@ public class Shooter {
     }
 
     public void updateOuttakeSequence(Intake intake, VoltageSensor voltageSensor) {
+        /*
+        telemetry.addData("outtakeState", outtakeState);
+        telemetry.addData("elapsed", System.currentTimeMillis() - outtakeStateStartTime);
+        telemetry.addData("intakeStarted", intakeStarted);
+
+         */
         if (outtakeState == OuttakeState.IDLE) return;
 
         long elapsed = System.currentTimeMillis() - outtakeStateStartTime;
@@ -764,8 +775,8 @@ public class Shooter {
     //   outputRPM      = shooter RPM needed at that distance
     // =================================================================================
     public static double interpolateDistanceToRPM(double distanceM) {
-        double[] inputDistances = { 1.1,    1.5,    2.08,    2.4,   2.75,    3.08,  3.34    }; // meters — REPLACE WITH YOUR DATA
-        double[] outputRPM      = { 2750.0, 3250.0, 3525.0, 3690.0, 3825.0, 3950.0, 4000.0 }; // RPM    — REPLACE WITH YOUR DATA
+        double[] inputDistances = { 1.1,    1.8,    2.38,    2.7,   3.05,    3.38,  3.64    }; // meters — REPLACE WITH YOUR DATA
+        double[] outputRPM      = { 2725.0, 3165.0, 3425.0, 3605.0, 3740.0, 3950.0, 4000.0 }; // RPM    — REPLACE WITH YOUR DATA
 
         if (distanceM <= inputDistances[0]) return outputRPM[0];
         if (distanceM >= inputDistances[inputDistances.length - 1]) return outputRPM[outputRPM.length - 1];

@@ -37,7 +37,7 @@ public class Red_Far extends LinearOpMode {
     // =======================
     // Shooter Constants
     // =======================
-    private static final double TARGET_RPM = 4800;
+    private static final double TARGET_RPM = 4000;
     private double activeTargetRPM = TARGET_RPM;
 
     // =======================
@@ -58,11 +58,10 @@ public class Red_Far extends LinearOpMode {
     // =======================
     // Timing Constants
     // =======================
-    private static final double SPINUP_TIME_1 = 0.275;
-    private static final double SPINUP_TIME_2 = 0.275;
+    private static final double SPINUP_TIME_1 = 0.1;
+    private static final double SPINUP_TIME_2 = 0.1;
     private static final double SHOOT_TIME_1  = 0.45;
     private static final double SHOOT_TIME_2  = 0.45;
-    private static final double WAIT_AT_GATE  = 0.25;
 
     // =======================
     // Poses
@@ -75,8 +74,8 @@ public class Red_Far extends LinearOpMode {
     private final Pose intake1End     = new Pose(132, 36,  Math.toRadians(0));
 
     // Intake 2 (row 2 — closer to wall)
-    private final Pose preIntake2Pose = new Pose(120, 7,   Math.toRadians(0));
-    private final Pose intake2End     = new Pose(132, 7,   Math.toRadians(0));
+    private final Pose preIntake2Pose = new Pose(120, 9,   Math.toRadians(0));
+    private final Pose intake2End     = new Pose(132, 9,   Math.toRadians(0));
 
     // Park
     private final Pose parkPose       = new Pose(120, 18,  Math.toRadians(45));
@@ -133,7 +132,7 @@ public class Red_Far extends LinearOpMode {
         middleTransfer = hardwareMap.get(DcMotor.class, "middleTransfer");
         middleTransfer.setDirection(DcMotor.Direction.FORWARD);
 
-        transferBlocker = hardwareMap.servo.get("transferBlocker");
+        transferBlocker = hardwareMap.servo.get("Gate");
         transferBlocker.setPosition(SERVO_HOME);
 
         voltageSensor = hardwareMap.voltageSensor.iterator().next();

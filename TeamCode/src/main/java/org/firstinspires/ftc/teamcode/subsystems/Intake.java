@@ -10,6 +10,8 @@ public class Intake {
 
     private boolean intakeOn = false;
     private boolean lastCircle = false;
+    private boolean slowMode = false;
+    private boolean lastA = false;
 
     public Intake(HardwareMap hardwareMap) {
         middleTransfer = hardwareMap.get(DcMotor.class, "middleTransfer");
@@ -18,12 +20,17 @@ public class Intake {
         middleTransfer.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
     }
 
+    public void setSlowMode(boolean aPressed) {
+        if (aPressed && !lastA) slowMode = !slowMode;
+        lastA = aPressed;
+    }
+
     public void update(boolean circlePressed, VoltageSensor voltageSensor, boolean outtakeIdle) {
         if (circlePressed && !lastCircle) intakeOn = !intakeOn;
         lastCircle = circlePressed;
 
         if (intakeOn) {
-            double intakePower = Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage());
+            double intakePower = Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage()) * (slowMode ? 0.65 : 1.0);
             middleTransfer.setPower(intakePower);
         } else if (outtakeIdle) {
             middleTransfer.setPower(0);
@@ -38,7 +45,7 @@ public class Intake {
             double reversePower = -Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage());
             middleTransfer.setPower(reversePower);
         } else if (intakeOn) {
-            double intakePower = Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage());
+            double intakePower = Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage()) * (slowMode ? 0.65 : 1.0);
             middleTransfer.setPower(intakePower);
         } else if (outtakeIdle) {
             middleTransfer.setPower(0);
@@ -46,7 +53,7 @@ public class Intake {
     }
 
     public void runTransfer(VoltageSensor voltageSensor) {
-        middleTransfer.setPower(Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage()) * 0.7);
+        middleTransfer.setPower(Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage()) * 0.65);
     }
 
     public void stopIfNotIntaking() {

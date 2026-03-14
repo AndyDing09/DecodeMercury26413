@@ -32,9 +32,16 @@ public class TeleOp2controller extends LinearOpMode {
 
     public static boolean IS_RED_ALLIANCE = true;
     private boolean lastShooterSpinUp = false;
-    public static double START_X = 8.5;
-    public static double START_Y = 72;
-    public static double START_HEADING = 0;
+    public static double START_X = 107;
+    public static double START_Y = 47;
+    public static double START_HEADING = -39.3;
+
+    // Relocalization target pose
+    private static final double RELOC_X       = 8.9;
+    private static final double RELOC_Y       = 135.0;
+    private static final double RELOC_HEADING = 0.0;
+
+    private boolean lastRelocButton = false; // for edge detection
 
     @Override
     public void runOpMode() {
@@ -84,11 +91,22 @@ public class TeleOp2controller extends LinearOpMode {
         while (opModeIsActive()) {
             follower.update();
 
-            drivetrain.drive(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+            // --- Relocalization (rising-edge on circle button) ---
+            boolean relocPressed = gamepad1.circle;
+            if (relocPressed && !lastRelocButton) {
+                follower.setPose(new Pose(RELOC_X, RELOC_Y, Math.toRadians(RELOC_HEADING)));
+            }
+            lastRelocButton = relocPressed;
+
+            double speed = 0.95;
+
+            drivetrain.drive(-gamepad1.left_stick_y * speed, gamepad1.left_stick_x * speed, gamepad1.right_stick_x * speed);
 
             manualTurretPower = gamepad1.right_stick_x;
 
             if (gamepad1.a) turret.resetEncoder();
+
+            intake.setSlowMode(gamepad2.a);
 
             intake.update(gamepad2.right_bumper, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
             intake.update(gamepad2.left_bumper, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE, gamepad2.dpad_down);
@@ -96,10 +114,6 @@ public class TeleOp2controller extends LinearOpMode {
             shooter.startShooterOnly(gamepad2.left_bumper, lastShooterSpinUp);
             lastShooterSpinUp = gamepad2.left_bumper;
 
-            // Gamepad2 bindings:
-            //   left_bumper  → spin up shooter only (no gate)
-            //   x            → full shoot sequence (spin up + open gate + outtake)
-            //   b            → kill / reset shoot sequence
             shooter.handleShooterInput(gamepad2.left_bumper, gamepad2.a, gamepad2.b, intake);
 
             shooter.updateOuttakeSequence(intake, voltageSensor);
