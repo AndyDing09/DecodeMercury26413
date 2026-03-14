@@ -375,6 +375,8 @@ public class Shooter {
     private static final long RPM_DROP_DELAY_MS = 5000;
     private static final double CRUISE_RPM = 2000;
 
+    private static final double SHOOTER_SCALE_FACTOR = 0.925;
+
     private static final double TICKS_PER_REV   = 28.0;
     private static final double NOMINAL_VOLTAGE  = 12.0;
     private static final double LEFT_BUMPER_RPM  = 4500;
@@ -716,8 +718,8 @@ public class Shooter {
     //   outputRPM      = shooter RPM needed at that distance
     // =================================================================================
     public static double interpolateDistanceToRPM(double distanceM) {
-        double[] inputDistances = {1.5,  2.08, 2.4,  2.75, 3.08, 3.34 }; // meters — REPLACE WITH YOUR DATA
-        double[] outputRPM      = {3300, 3500, 3600, 3675, 3900, 3975 }; // RPM    — REPLACE WITH YOUR DATA
+        double[] inputDistances = {1.5,                                2.08,                   2.4,                        2.75,                       3.08,                        3.34 }; // meters — REPLACE WITH YOUR DATA
+        double[] outputRPM      = {3100 * SHOOTER_SCALE_FACTOR, 3225 * SHOOTER_SCALE_FACTOR, 3325 * SHOOTER_SCALE_FACTOR, 3400 * SHOOTER_SCALE_FACTOR, 3750 * SHOOTER_SCALE_FACTOR, 3800 * SHOOTER_SCALE_FACTOR}; // RPM    — REPLACE WITH YOUR DATA
 
         if (distanceM <= inputDistances[0]) return outputRPM[0];
         if (distanceM >= inputDistances[inputDistances.length - 1]) return outputRPM[outputRPM.length - 1];
