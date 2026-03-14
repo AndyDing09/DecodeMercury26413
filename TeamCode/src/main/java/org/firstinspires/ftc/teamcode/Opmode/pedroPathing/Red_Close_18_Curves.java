@@ -48,7 +48,7 @@ public class Red_Close_18_Curves extends LinearOpMode {
     // Gate Positions
     // =======================
     private static final double GATE_CLOSED = 0.02;
-    private static final double GATE_OPEN   = 0.27;
+    private static final double GATE_OPEN   = 0.20;
 
     // =======================
     // Intake Constants

@@ -13,6 +13,8 @@ public class Intake {
     private boolean slowMode = false;
     private boolean lastA = false;
 
+    private double intakePowerScale = 1;
+
     public Intake(HardwareMap hardwareMap) {
         middleTransfer = hardwareMap.get(DcMotor.class, "middleTransfer");
         middleTransfer.setDirection(DcMotor.Direction.FORWARD);
@@ -22,15 +24,21 @@ public class Intake {
 
     public void setSlowMode(boolean aPressed) {
         if (aPressed && !lastA) slowMode = !slowMode;
+        //if (aPressed) slowMode = true;
         lastA = aPressed;
     }
 
     public void update(boolean circlePressed, VoltageSensor voltageSensor, boolean outtakeIdle) {
         if (circlePressed && !lastCircle) intakeOn = !intakeOn;
+        //if (circlePressed) slowMode = false;
         lastCircle = circlePressed;
 
+
+        double intakePower = Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage()) * (slowMode ? intakePowerScale : 1.0);
+        middleTransfer.setPower(intakePower);
+
         if (intakeOn) {
-            double intakePower = Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage()) * (slowMode ? 0.65 : 1.0);
+            intakePower = Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage()) * (slowMode ? intakePowerScale : 1.0);
             middleTransfer.setPower(intakePower);
         } else if (outtakeIdle) {
             middleTransfer.setPower(0);
@@ -45,7 +53,7 @@ public class Intake {
             double reversePower = -Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage());
             middleTransfer.setPower(reversePower);
         } else if (intakeOn) {
-            double intakePower = Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage()) * (slowMode ? 0.65 : 1.0);
+            double intakePower = Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage()) * (slowMode ? intakePowerScale : 1.0);
             middleTransfer.setPower(intakePower);
         } else if (outtakeIdle) {
             middleTransfer.setPower(0);
@@ -53,7 +61,8 @@ public class Intake {
     }
 
     public void runTransfer(VoltageSensor voltageSensor) {
-        middleTransfer.setPower(Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage()) * 0.65);
+        middleTransfer.setPower(Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage()) * intakePowerScale);
+        //middleTransfer.setPower(Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage()));
     }
 
     public void stopIfNotIntaking() {

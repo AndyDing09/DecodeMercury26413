@@ -339,65 +339,6 @@ public class Shooter {
  */
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 package org.firstinspires.ftc.teamcode.subsystems;
 
 import static org.firstinspires.ftc.robotcore.external.BlocksOpModeCompanion.telemetry;
@@ -454,7 +395,7 @@ public class Shooter {
     // For tele
     private static final long GATE_CLOSE_DELAY_MS = 1500;
 
-    private static final double GATE_OPEN   = 0.27;
+    private static final double GATE_OPEN   = 0.20;
     private static final double GATE_CLOSED = 0.02;
 
     private double currentHoodAnglePos = HOOD_LOCKED_POSITION; // Always locked
@@ -775,8 +716,8 @@ public class Shooter {
     //   outputRPM      = shooter RPM needed at that distance
     // =================================================================================
     public static double interpolateDistanceToRPM(double distanceM) {
-        double[] inputDistances = { 1.1,    1.8,    2.38,    2.7,   3.05,    3.38,  3.64    }; // meters — REPLACE WITH YOUR DATA
-        double[] outputRPM      = { 2725.0, 3165.0, 3425.0, 3605.0, 3740.0, 3950.0, 4000.0 }; // RPM    — REPLACE WITH YOUR DATA
+        double[] inputDistances = {1.5,  2.08, 2.4,  2.75, 3.08, 3.34 }; // meters — REPLACE WITH YOUR DATA
+        double[] outputRPM      = {3300, 3500, 3600, 3675, 3900, 3975 }; // RPM    — REPLACE WITH YOUR DATA
 
         if (distanceM <= inputDistances[0]) return outputRPM[0];
         if (distanceM >= inputDistances[inputDistances.length - 1]) return outputRPM[outputRPM.length - 1];

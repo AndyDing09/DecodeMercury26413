@@ -13,9 +13,9 @@ public class PIDFMotorController {
     // Anti-windup: clamp integral accumulator
     private static final double MAX_INTEGRAL = 300.0;
 
-    // Only accumulate integral when error is within this zone (ticks/sec)
-    // Prevents windup during ramp-up
-    private static final double INTEGRAL_ZONE_TICKS = 400.0;
+    // Only accumulate integral when error is within this zone (RPM)
+    // Normalized from ticks/sec so gains are human-tunable
+    private static final double INTEGRAL_ZONE_RPM = 50.0;
 
     // Low-pass filter coefficient for derivative (0 = no filtering, 1 = full filtering)
     private static final double DERIVATIVE_FILTER = 0.7;
@@ -63,12 +63,16 @@ public class PIDFMotorController {
         double dt = Math.min(MAX_DT, Math.max(1e-6, timer.seconds()));
         timer.reset();
 
-        double error = targetTicksPerSec - currentTicksPerSec;
+        // Normalize error to RPM so gains are human-tunable
+        // kP = 0.001 means: 1 RPM error -> +0.001 power contribution
+        double targetRPM = (targetTicksPerSec / ticksPerRev) * 60.0;
+        double currentRPM = (currentTicksPerSec / ticksPerRev) * 60.0;
+        double errorRPM = targetRPM - currentRPM;
 
         // Only accumulate integral when close to setpoint (prevents ramp-up windup)
-        boolean inIntegralZone = Math.abs(error) < INTEGRAL_ZONE_TICKS;
+        boolean inIntegralZone = Math.abs(errorRPM) < INTEGRAL_ZONE_RPM;
         if (inIntegralZone) {
-            integralSum += error * dt;
+            integralSum += errorRPM * dt;
             integralSum = Math.max(-MAX_INTEGRAL, Math.min(MAX_INTEGRAL, integralSum));
         } else {
             // Outside integral zone — reset integral so it doesn't carry stale values
@@ -76,24 +80,16 @@ public class PIDFMotorController {
         }
 
         // Low-pass filtered derivative to reduce noise/jitter
-        double rawDerivative = (error - lastError) / dt;
+        double rawDerivative = (errorRPM - lastError) / dt;
         double derivative = DERIVATIVE_FILTER * lastDerivative + (1.0 - DERIVATIVE_FILTER) * rawDerivative;
         lastDerivative = derivative;
-        lastError = error;
+        lastError = errorRPM;
 
-        // Feedforward + PID
+        // Feedforward operates on ticks/sec (unchanged), PID operates on RPM-normalized error
         double ff = kF * targetTicksPerSec;
-        double pid = (kP * error) + (kI * integralSum) + (kD * derivative);
+        double pid = (kP * errorRPM) + (kI * integralSum) + (kD * derivative);
         double power = ff + pid;
 
-        // Anti-windup: only adjust integral when we're actually in the integral zone
-        if (inIntegralZone) {
-            if (power > 1.0) {
-                integralSum -= (power - 1.0) / Math.max(kI, 1e-9) * dt;
-            } else if (power < 0) {
-                integralSum -= power / Math.max(kI, 1e-9) * dt;
-            }
-        }
         power = Math.max(0, Math.min(1.0, power));
 
         return power;
@@ -129,36 +125,30 @@ public class PIDFMotorController {
         double dt = Math.min(MAX_DT, Math.max(1e-6, timer.seconds()));
         timer.reset();
 
-        double error = targetTicksPerSec - currentTicksPerSec;
+        // Normalize error to RPM so gains are human-tunable
+        double currentRPM = (currentTicksPerSec / ticksPerRev) * 60.0;
+        double errorRPM = targetRPM - currentRPM;
 
-        boolean inIntegralZone = Math.abs(error) < INTEGRAL_ZONE_TICKS;
+        boolean inIntegralZone = Math.abs(errorRPM) < INTEGRAL_ZONE_RPM;
         if (inIntegralZone) {
-            integralSum += error * dt;
+            integralSum += errorRPM * dt;
             integralSum = Math.max(-MAX_INTEGRAL, Math.min(MAX_INTEGRAL, integralSum));
         } else {
             integralSum = 0;
         }
 
-        double rawDerivative = (error - lastError) / dt;
+        double rawDerivative = (errorRPM - lastError) / dt;
         double derivative = DERIVATIVE_FILTER * lastDerivative + (1.0 - DERIVATIVE_FILTER) * rawDerivative;
         lastDerivative = derivative;
-        lastError = error;
+        lastError = errorRPM;
 
         // Voltage-compensated feedforward: scale FF by voltage ratio so the motor
         // receives the same effective voltage regardless of battery level
         double voltageScale = (currentVoltage > 0) ? (nominalVoltage / currentVoltage) : 1.0;
         double ff = kF * targetTicksPerSec * voltageScale;
-        double pid = (kP * error) + (kI * integralSum) + (kD * derivative);
+        double pid = (kP * errorRPM) + (kI * integralSum) + (kD * derivative);
         double power = ff + pid;
 
-        // Anti-windup: only adjust integral when we're actually in the integral zone
-        if (inIntegralZone) {
-            if (power > 1.0) {
-                integralSum -= (power - 1.0) / Math.max(kI, 1e-9) * dt;
-            } else if (power < 0) {
-                integralSum -= power / Math.max(kI, 1e-9) * dt;
-            }
-        }
         power = Math.max(0, Math.min(1.0, power));
 
         return power;
