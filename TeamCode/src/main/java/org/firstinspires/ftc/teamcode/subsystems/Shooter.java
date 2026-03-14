@@ -400,6 +400,8 @@ public class Shooter {
 
 package org.firstinspires.ftc.teamcode.subsystems;
 
+import static org.firstinspires.ftc.robotcore.external.BlocksOpModeCompanion.telemetry;
+
 import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
@@ -428,7 +430,7 @@ public class Shooter {
     public enum OuttakeState { IDLE, RAMPING, GATE_OPEN, TRANSFERRING }
     private OuttakeState outtakeState = OuttakeState.IDLE;
     private long outtakeStateStartTime = 0;
-    private static final long INTAKE_DELAY_MS = 500;
+    private static final long INTAKE_DELAY_MS = 50;
     private static final long RPM_DROP_DELAY_MS = 5000;
     private static final double CRUISE_RPM = 2000;
 
@@ -452,8 +454,8 @@ public class Shooter {
     // For tele
     private static final long GATE_CLOSE_DELAY_MS = 1500;
 
-    private static final double GATE_OPEN   = 0.26;
-    private static final double GATE_CLOSED = 0.1;
+    private static final double GATE_OPEN   = 0.27;
+    private static final double GATE_CLOSED = 0.02;
 
     private double currentHoodAnglePos = HOOD_LOCKED_POSITION; // Always locked
     // private boolean lastG1Y = false; // OLD — hood manual control removed
@@ -544,6 +546,8 @@ public class Shooter {
 
 
     public void handleShooterInput(boolean leftBumper, boolean rightBumper, boolean triangle, Intake intake) {
+        telemetry.addData("g2.a", rightBumper);
+        telemetry.addData("lastRightBumper", lastRightBumper);
         if (triangle && !lastTriangle) {
             gate.setPosition(GATE_CLOSED);
             outtakeState = OuttakeState.IDLE;
@@ -557,7 +561,7 @@ public class Shooter {
                 shooterKilled = false;
                 targetRPM  = LEFT_BUMPER_RPM;
             }
-            gate.setPosition(GATE_OPEN);
+            // gate.setPosition(GATE_OPEN);
             intakeStarted = false;
             outtakeState        = OuttakeState.RAMPING;
             outtakeStateStartTime = System.currentTimeMillis();
@@ -761,7 +765,7 @@ public class Shooter {
     // =================================================================================
     public static double interpolateDistanceToRPM(double distanceM) {
         double[] inputDistances = { 1.1,    1.5,    2.08,    2.4,   2.75,    3.08,  3.34    }; // meters — REPLACE WITH YOUR DATA
-        double[] outputRPM      = { 2775.0, 3300.0, 3575.0, 3725.0, 3775.0, 3975.0, 4050.0 }; // RPM    — REPLACE WITH YOUR DATA
+        double[] outputRPM      = { 2750.0, 3250.0, 3525.0, 3690.0, 3825.0, 3950.0, 4000.0 }; // RPM    — REPLACE WITH YOUR DATA
 
         if (distanceM <= inputDistances[0]) return outputRPM[0];
         if (distanceM >= inputDistances[inputDistances.length - 1]) return outputRPM[outputRPM.length - 1];

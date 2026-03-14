@@ -44,7 +44,7 @@ public class Constants {
     // THIS MIGHT BE THE ISSUE: NO TRANSLATIONAL OR LATERAL HEADING COEFFICIENTS HERE
     // ================================================================
     public static FollowerConstants followerConstants = new FollowerConstants()
-            .mass(12.7)
+            .mass(14.4)
             .forwardZeroPowerAcceleration(-30.703)
             .lateralZeroPowerAcceleration(-64.97)
             .predictiveBrakingCoefficients(new PredictiveBrakingCoefficients(0.3, 0.108403, 0.001407))

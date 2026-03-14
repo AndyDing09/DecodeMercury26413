@@ -30,8 +30,23 @@ public class Intake {
         }
     }
 
+    public void update(boolean circlePressed, VoltageSensor voltageSensor, boolean outtakeIdle, boolean reverse) {
+        if (circlePressed && !lastCircle) intakeOn = !intakeOn;
+        lastCircle = circlePressed;
+
+        if (reverse) {
+            double reversePower = -Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage());
+            middleTransfer.setPower(reversePower);
+        } else if (intakeOn) {
+            double intakePower = Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage());
+            middleTransfer.setPower(intakePower);
+        } else if (outtakeIdle) {
+            middleTransfer.setPower(0);
+        }
+    }
+
     public void runTransfer(VoltageSensor voltageSensor) {
-        middleTransfer.setPower(Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage()));
+        middleTransfer.setPower(Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage()) * 0.7);
     }
 
     public void stopIfNotIntaking() {

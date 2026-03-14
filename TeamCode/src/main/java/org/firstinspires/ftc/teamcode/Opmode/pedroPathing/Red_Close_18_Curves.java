@@ -39,8 +39,8 @@ public class Red_Close_18_Curves extends LinearOpMode {
     // =======================
     // Shooter Constants
     // =======================
-    private static final double TARGET_RPM_INITIAL = 3535;
-    private static final double TARGET_RPM_NORMAL = 3220;
+    private static final double TARGET_RPM_INITIAL = 3515;
+    private static final double TARGET_RPM_NORMAL = 3235;
     private static final double TARGET_RPM_FINAL  = 3145;
     private double activeTargetRPM = TARGET_RPM_INITIAL;
 
@@ -59,8 +59,8 @@ public class Red_Close_18_Curves extends LinearOpMode {
     // =======================
     // Intake wait at pick pose
     // =======================
-    private static final double PICK_FROM_CLEAR_SECONDS_INITIAL = 1.25;
-    private static final double PICK_FROM_CLEAR_SECONDS_FUTURE = 1.025;
+    private static final double PICK_FROM_CLEAR_SECONDS_INITIAL = 1.35;
+    private static final double PICK_FROM_CLEAR_SECONDS_FUTURE = 1.15;
     private static final double WAIT_AT_GATE = 0.25;
 
     // =======================
@@ -68,16 +68,16 @@ public class Red_Close_18_Curves extends LinearOpMode {
     // =======================
     private final Pose startPose         = new Pose(123.5, 123, Math.toRadians(43));
     private final Pose InitialShootPose  = new Pose(97,  97,  Math.toRadians(46));
-    private final Pose NormalShootPose   = new Pose(94, 83, Math.toRadians(53.5));
+    private final Pose NormalShootPose   = new Pose(96, 85, Math.toRadians(53.5));
     private final Pose FinalShootPose    = new Pose(97, 106, Math.toRadians(39));
     private final Pose Intake2End        = new Pose(138, 60,  Math.toRadians(0));
     private final Pose clearPose         = new Pose(122, 65,  Math.toRadians(0));
-    private final Pose PickFromClearPose_INITIAL = new Pose(138.2, 59.2, Math.toRadians(31.1));
-    private final Pose PickFromClearPose_FUTURE = new Pose(138.9, 59.5,  Math.toRadians(34.15));
+    private final Pose PickFromClearPose_INITIAL = new Pose(138.5, 59.75, Math.toRadians(29.8));
+    private final Pose PickFromClearPose_FUTURE = new Pose(139, 59.75,  Math.toRadians(33.75));
     private final Pose pickupPose1       = new Pose(102, 84,  Math.toRadians(0));
     private final Pose IntermediatePosePickup1 = new Pose(96, 86, Math.toRadians(15));
-    private final Pose Intake1End        = new Pose(130, 84,  Math.toRadians(0));
-    private final Pose intermediatePose1 = new Pose(110, 62,  Math.toRadians(20));
+    private final Pose Intake1End        = new Pose(131, 84,  Math.toRadians(0));
+    private final Pose intermediatePose1 = new Pose(111, 65,  Math.toRadians(19));
     private final Pose intermediatePose2 = new Pose(102, 66,  Math.toRadians(22.5));
     private final Pose intermediatePosePickup2 = new Pose(94, 50, Math.toRadians(15));
     // private final Pose parkPose          = new Pose(118, 68,  Math.toRadians(0));
@@ -100,7 +100,7 @@ public class Red_Close_18_Curves extends LinearOpMode {
     private int state = 0;
 
     private static final double SPINUP_TIME = 0.02;
-    private static final double SHOOT_TIME  = 0.390;
+    private static final double SHOOT_TIME  = 0.425;
 
     @Override
     public void runOpMode() {
@@ -266,7 +266,8 @@ public class Red_Close_18_Curves extends LinearOpMode {
             // ── FIRST SHOOT CYCLE ────────────────────
             case 0:
                 activeTargetRPM = TARGET_RPM_INITIAL;
-                middleTransfer.setPower(1.0);
+                // middleTransfer.setPower(1.0);
+                middleTransfer.setPower(0.85);
                 follower.followPath(toShootFromStart, true);
                 middleTransfer.setPower(0.0);
                 Gate.setPosition(GATE_OPEN);
@@ -287,7 +288,8 @@ public class Red_Close_18_Curves extends LinearOpMode {
 
             case 2:
                 if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME) {
-                    middleTransfer.setPower(1.0);
+                    // middleTransfer.setPower(1.0);
+                    middleTransfer.setPower(0.85);
                     setState(3);
                 }
                 break;
@@ -298,7 +300,9 @@ public class Red_Close_18_Curves extends LinearOpMode {
                 //     shooter.setHoodAnglePos(0.5);
                     activeTargetRPM = TARGET_RPM_NORMAL;
                     // Single BezierCurve to Intake2End — intake on for the entire path
-                    middleTransfer.setPower(1.0);
+
+                    // middleTransfer.setPower(1.0);
+                    middleTransfer.setPower(0.85);
                     follower.followPath(toPickup2, true);
                     setState(4);
                 }
@@ -324,7 +328,8 @@ public class Red_Close_18_Curves extends LinearOpMode {
             case 6:
                 if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME) {
                     Gate.setPosition(GATE_OPEN);
-                    middleTransfer.setPower(1.0);
+                    // middleTransfer.setPower(1.0);
+                    middleTransfer.setPower(0.85);
                     setState(7);
                 }
                 break;
@@ -334,7 +339,7 @@ public class Red_Close_18_Curves extends LinearOpMode {
                     Gate.setPosition(GATE_CLOSED);
               //       shooter.setHoodAnglePos(0.5);
                     // Drive directly from shoot pose to pickFromClearPose (skipping clearPose)
-               //      middleTransfer.setPower(1.0);
+               //                     middleTransfer.setPower(1.0);
                     follower.followPath(toPickFromClearDirect_INITIAL, true);
                     setState(8);
                 }
@@ -373,7 +378,9 @@ public class Red_Close_18_Curves extends LinearOpMode {
                     Gate.setPosition(GATE_CLOSED);
                //      shooter.setHoodAnglePos(0.5);
                     // Drive directly from shoot pose to pickFromClearPose (skipping clearPose)
-                    middleTransfer.setPower(1.0);
+
+                    // middleTransfer.setPower(1.0);
+                    middleTransfer.setPower(0.85);
                     follower.followPath(toPickFromClearDirect_FUTURE, true);
                     setState(13);
                 }
@@ -412,7 +419,9 @@ public class Red_Close_18_Curves extends LinearOpMode {
                     Gate.setPosition(GATE_CLOSED);
              //        shooter.setHoodAnglePos(0.5);
                     // Drive directly from shoot pose to pickFromClearPose (skipping clearPose)
-                    middleTransfer.setPower(1.0);
+
+                    // middleTransfer.setPower(1.0);
+                    middleTransfer.setPower(0.85);
                     follower.followPath(toPickFromClearDirect_FUTURE, true);
                     setState(18);
                 }
@@ -451,7 +460,9 @@ public class Red_Close_18_Curves extends LinearOpMode {
                     Gate.setPosition(GATE_CLOSED);
           //           shooter.setHoodAnglePos(0.5);
                     // Launch the single Bezier curve with intake running
-                    middleTransfer.setPower(1.0);
+
+                    // middleTransfer.setPower(1.0);
+                    middleTransfer.setPower(0.85);
                     follower.followPath(toPickup1, true);
                     setState(23);
                 }
@@ -476,14 +487,15 @@ public class Red_Close_18_Curves extends LinearOpMode {
             case 25:
                 if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME) {
                     Gate.setPosition(GATE_OPEN);
-                    middleTransfer.setPower(1.0);
+                    // middleTransfer.setPower(1.0);
+                    middleTransfer.setPower(0.85);
                     setState(26);
                 }
                 break;
 
             case 26:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME) {
-                    Gate.setPosition(GATE_CLOSED);
+          //           Gate.setPosition(GATE_CLOSED);
                     middleTransfer.setPower(0);
           //           shooter.setHoodAnglePos(0.5);
                     //    follower.followPath(toPark, true);

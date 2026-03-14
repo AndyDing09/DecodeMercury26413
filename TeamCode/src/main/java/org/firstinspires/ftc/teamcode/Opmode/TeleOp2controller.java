@@ -90,11 +90,18 @@ public class TeleOp2controller extends LinearOpMode {
 
             if (gamepad1.a) turret.resetEncoder();
 
-            intake.update(gamepad2.left_bumper, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
+            intake.update(gamepad2.right_bumper, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
+            intake.update(gamepad2.left_bumper, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE, gamepad2.dpad_down);
 
             shooter.startShooterOnly(gamepad2.left_bumper, lastShooterSpinUp);
             lastShooterSpinUp = gamepad2.left_bumper;
-            shooter.handleShooterInput(gamepad2.x, gamepad2.right_bumper, gamepad2.x, intake);
+
+            // Gamepad2 bindings:
+            //   left_bumper  → spin up shooter only (no gate)
+            //   x            → full shoot sequence (spin up + open gate + outtake)
+            //   b            → kill / reset shoot sequence
+            shooter.handleShooterInput(gamepad2.left_bumper, gamepad2.a, gamepad2.b, intake);
+
             shooter.updateOuttakeSequence(intake, voltageSensor);
             shooter.updateFromOdometry(follower, telemetry);
             shooter.updatePIDF(voltageSensor, telemetry);
