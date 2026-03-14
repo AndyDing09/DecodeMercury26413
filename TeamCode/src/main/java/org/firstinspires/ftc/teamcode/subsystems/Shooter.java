@@ -466,11 +466,11 @@ public class Shooter {
     private double targetRPM = 0;
     private double kP_shooter, kI_shooter, kD_shooter, kF_shooter;
     public static double kP_shooter_low  = 0.000026;
-    public static double kI_shooter_low  = 0.00002;
+    public static double kI_shooter_low  = 0.0000;
     public static double kD_shooter_low  = 0.0000;
     public static double kF_shooter_low  = 0.0004;
     public static double kP_shooter_high = 0.00012;
-    public static double kI_shooter_high = 0.00003;
+    public static double kI_shooter_high = 0.000;
     public static double kD_shooter_high = 0.00008;
     public static double kF_shooter_high = 0.00045;
 
@@ -530,6 +530,19 @@ public class Shooter {
     //     if (changed) updateHoodServos(currentHoodAnglePos);
     // }
 
+
+    public void startShooterOnly(boolean leftBumper, boolean lastLeft) {
+        if (leftBumper && !lastLeft) {
+            shooterOn     = true;
+            shooterKilled = false;
+            targetRPM     = LEFT_BUMPER_RPM;
+            initialRPM    = LEFT_BUMPER_RPM;
+            updateHoodServos(HOOD_LOCKED_POSITION);
+            // No gate, no outtake sequence — just spin up
+        }
+    }
+
+
     public void handleShooterInput(boolean leftBumper, boolean rightBumper, boolean triangle, Intake intake) {
         if (triangle && !lastTriangle) {
             gate.setPosition(GATE_CLOSED);
@@ -539,17 +552,17 @@ public class Shooter {
             updateHoodServos(HOOD_LOCKED_POSITION);
         }
         if (leftBumper && !lastLeftBumper) {
-            shooterOn     = true;
-            shooterKilled = false;
-            initialRPM    = LEFT_BUMPER_RPM;
-            targetRPM     = LEFT_BUMPER_RPM;
-            // Hood stays locked
-            updateHoodServos(HOOD_LOCKED_POSITION);
+            if (!shooterOn) { // safety: force shooter on if somehow off
+                shooterOn  = true;
+                shooterKilled = false;
+                targetRPM  = LEFT_BUMPER_RPM;
+            }
             gate.setPosition(GATE_OPEN);
             intakeStarted = false;
             outtakeState        = OuttakeState.RAMPING;
             outtakeStateStartTime = System.currentTimeMillis();
         }
+
         if (rightBumper && !lastRightBumper) {
             shooterOn     = true;
             shooterKilled = false;
@@ -748,7 +761,7 @@ public class Shooter {
     // =================================================================================
     public static double interpolateDistanceToRPM(double distanceM) {
         double[] inputDistances = { 1.1,    1.5,    2.08,    2.4,   2.75,    3.08,  3.34    }; // meters — REPLACE WITH YOUR DATA
-        double[] outputRPM      = { 2800.0, 3250.0, 3500.0, 3600.0, 3675.0, 3900.0, 3975.0 }; // RPM    — REPLACE WITH YOUR DATA
+        double[] outputRPM      = { 2775.0, 3300.0, 3575.0, 3725.0, 3775.0, 3975.0, 4050.0 }; // RPM    — REPLACE WITH YOUR DATA
 
         if (distanceM <= inputDistances[0]) return outputRPM[0];
         if (distanceM >= inputDistances[inputDistances.length - 1]) return outputRPM[outputRPM.length - 1];

@@ -51,7 +51,7 @@ public class Constants {
             .headingPIDFCoefficients(new PIDFCoefficients(2.25, 0, 0.23, 0.02)) // 1. increase f until oscillations then decrease  2. increase p(push it high - 2) and d(matching p so that when robot corrects itself it doesn overshoot)   3. i=0
             ;
 
-    public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 2.25, 1);
+    public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 2.5, 1);
 
     public static Follower createFollower(HardwareMap hardwareMap) {
         return new FollowerBuilder(followerConstants, hardwareMap)

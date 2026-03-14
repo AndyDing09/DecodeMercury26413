@@ -13,8 +13,8 @@ public final class MathLib {
     public static final double TARGET_HEIGHT = 1.22;
 
     // ==================== GOAL POSITIONS (field inches) ====================
-    public static final double GOAL_CENTER_X = 132.0;
-    public static final double GOAL_CENTER_Y = 12.0;
+    public static final double GOAL_CENTER_X = 138.0;
+    public static final double GOAL_CENTER_Y = 6.0;
 
     // ==================== UNIT CONVERSION ====================
     public static final double INCHES_TO_METERS = 0.0254;

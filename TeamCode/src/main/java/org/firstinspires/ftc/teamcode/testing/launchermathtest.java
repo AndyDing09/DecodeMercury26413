@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.testing;
 
-import static org.firstinspires.ftc.teamcode.testing.MathLib.interpolateToShootingDistance;
+// import static org.firstinspires.ftc.teamcode.testing.MathLib.interpolateToShootingDistance;
 
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
@@ -373,7 +373,7 @@ public class launchermathtest extends LinearOpMode {
     // PHYSICS CALCULATION (full ballistics solver with lip clearance)
     // =================================================================================
     public static double[] distanceToLauncherValues(double distance) {
-        distance = interpolateToShootingDistance(distance);
+        // distance = interpolateToShootingDistance(distance);
 
         distance += DISTANCE_OFFSET;
         if (distance <= 0) return new double[]{Double.NaN, Double.NaN};

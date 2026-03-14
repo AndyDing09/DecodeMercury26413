@@ -31,8 +31,9 @@ public class TeleOp2controller extends LinearOpMode {
     private volatile double manualTurretPower = 0;
 
     public static boolean IS_RED_ALLIANCE = true;
-    public static double START_X = 0;
-    public static double START_Y = 0;
+    private boolean lastShooterSpinUp = false;
+    public static double START_X = 8.5;
+    public static double START_Y = 72;
     public static double START_HEADING = 0;
 
     @Override
@@ -89,9 +90,11 @@ public class TeleOp2controller extends LinearOpMode {
 
             if (gamepad1.a) turret.resetEncoder();
 
-            intake.update(gamepad2.circle, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
+            intake.update(gamepad2.left_bumper, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
 
-            shooter.handleShooterInput(gamepad2.left_bumper, gamepad2.x, gamepad2.right_bumper, intake);
+            shooter.startShooterOnly(gamepad2.left_bumper, lastShooterSpinUp);
+            lastShooterSpinUp = gamepad2.left_bumper;
+            shooter.handleShooterInput(gamepad2.x, gamepad2.right_bumper, gamepad2.x, intake);
             shooter.updateOuttakeSequence(intake, voltageSensor);
             shooter.updateFromOdometry(follower, telemetry);
             shooter.updatePIDF(voltageSensor, telemetry);

@@ -39,9 +39,9 @@ public class Red_Close_18_Curves extends LinearOpMode {
     // =======================
     // Shooter Constants
     // =======================
-    private static final double TARGET_RPM_INITIAL = 3545;
-    private static final double TARGET_RPM_NORMAL = 3060;
-    private static final double TARGET_RPM_FINAL  = 3135;
+    private static final double TARGET_RPM_INITIAL = 3535;
+    private static final double TARGET_RPM_NORMAL = 3220;
+    private static final double TARGET_RPM_FINAL  = 3145;
     private double activeTargetRPM = TARGET_RPM_INITIAL;
 
     // =======================
@@ -59,7 +59,8 @@ public class Red_Close_18_Curves extends LinearOpMode {
     // =======================
     // Intake wait at pick pose
     // =======================
-    private static final double PICK_FROM_CLEAR_SECONDS = 1.5;
+    private static final double PICK_FROM_CLEAR_SECONDS_INITIAL = 1.25;
+    private static final double PICK_FROM_CLEAR_SECONDS_FUTURE = 1.025;
     private static final double WAIT_AT_GATE = 0.25;
 
     // =======================
@@ -67,15 +68,16 @@ public class Red_Close_18_Curves extends LinearOpMode {
     // =======================
     private final Pose startPose         = new Pose(123.5, 123, Math.toRadians(43));
     private final Pose InitialShootPose  = new Pose(97,  97,  Math.toRadians(46));
-    private final Pose NormalShootPose   = new Pose(98, 86, Math.toRadians(54));
-    private final Pose FinalShootPose    = new Pose(86, 120, Math.toRadians(23.25));
-    private final Pose Intake2End        = new Pose(140, 60,  Math.toRadians(0));
+    private final Pose NormalShootPose   = new Pose(94, 83, Math.toRadians(53.5));
+    private final Pose FinalShootPose    = new Pose(97, 106, Math.toRadians(39));
+    private final Pose Intake2End        = new Pose(138, 60,  Math.toRadians(0));
     private final Pose clearPose         = new Pose(122, 65,  Math.toRadians(0));
-    private final Pose pickFromClearPose = new Pose(138.6, 59.5,  Math.toRadians(35.5));
+    private final Pose PickFromClearPose_INITIAL = new Pose(138.2, 59.2, Math.toRadians(31.1));
+    private final Pose PickFromClearPose_FUTURE = new Pose(138.9, 59.5,  Math.toRadians(34.15));
     private final Pose pickupPose1       = new Pose(102, 84,  Math.toRadians(0));
-    private final Pose IntermediatePosePickup1 = new Pose(100, 82, Math.toRadians(0));
-    private final Pose Intake1End        = new Pose(131, 84,  Math.toRadians(0));
-    private final Pose intermediatePose1 = new Pose(108, 60,  Math.toRadians(22.5));
+    private final Pose IntermediatePosePickup1 = new Pose(96, 86, Math.toRadians(15));
+    private final Pose Intake1End        = new Pose(130, 84,  Math.toRadians(0));
+    private final Pose intermediatePose1 = new Pose(110, 62,  Math.toRadians(20));
     private final Pose intermediatePose2 = new Pose(102, 66,  Math.toRadians(22.5));
     private final Pose intermediatePosePickup2 = new Pose(94, 50, Math.toRadians(15));
     // private final Pose parkPose          = new Pose(118, 68,  Math.toRadians(0));
@@ -89,6 +91,7 @@ public class Red_Close_18_Curves extends LinearOpMode {
     private PathChain toClear, toPickFromClear, toShootFromPickFromClear;
     private PathChain toPickup1, toShootFromPickup1, toPark;
     private PathChain toPickFromClearDirect; // NEW: shoots straight to pickFromClearPose
+    private PathChain toPickFromClearDirect_INITIAL, toShootFromPickFromClear_INITIAL, toPickFromClearDirect_FUTURE, toShootFromPickFromClear_FUTURE;
 
     // =======================
     // State Machine
@@ -96,8 +99,8 @@ public class Red_Close_18_Curves extends LinearOpMode {
     private final Timer actionTimer = new Timer();
     private int state = 0;
 
-    private static final double SPINUP_TIME = 0.001;
-    private static final double SHOOT_TIME  = 0.425;
+    private static final double SPINUP_TIME = 0.02;
+    private static final double SHOOT_TIME  = 0.390;
 
     @Override
     public void runOpMode() {
@@ -158,35 +161,47 @@ public class Red_Close_18_Curves extends LinearOpMode {
                 .build();
 
         toShootFromPickup2 = follower.pathBuilder()
-                .addPath(new BezierCurve(Intake2End, intermediatePose1, InitialShootPose))
-                .setLinearHeadingInterpolation(Intake2End.getHeading(), InitialShootPose.getHeading())
+                .addPath(new BezierCurve(Intake2End, intermediatePose1, NormalShootPose))
+                .setLinearHeadingInterpolation(Intake2End.getHeading(), NormalShootPose.getHeading())
                 .build();
 
         // OLD: shoot → clearPose (kept for reference, no longer used in state machine)
         toClear = follower.pathBuilder()
-                .addPath(new BezierCurve(InitialShootPose, intermediatePose2, clearPose))
-                .setLinearHeadingInterpolation(InitialShootPose.getHeading(), clearPose.getHeading())
+                .addPath(new BezierCurve(NormalShootPose, intermediatePose2, clearPose))
+                .setLinearHeadingInterpolation(NormalShootPose.getHeading(), clearPose.getHeading())
                 .build();
-
+/*
         toPickFromClear = follower.pathBuilder()
                 .addPath(new BezierLine(clearPose, pickFromClearPose))
                 .setLinearHeadingInterpolation(clearPose.getHeading(), pickFromClearPose.getHeading())
                 .build();
 
+ */
+
         // NEW: direct path from NormalShootPose straight to pickFromClearPose
-        toPickFromClearDirect = follower.pathBuilder()
-                .addPath(new BezierCurve(InitialShootPose, intermediatePose2, pickFromClearPose))
-                .setLinearHeadingInterpolation(InitialShootPose.getHeading(), pickFromClearPose.getHeading())
+        toPickFromClearDirect_INITIAL = follower.pathBuilder()
+                .addPath(new BezierCurve(NormalShootPose, intermediatePose2, PickFromClearPose_INITIAL))
+                .setLinearHeadingInterpolation(NormalShootPose.getHeading(), PickFromClearPose_INITIAL.getHeading())
                 .build();
 
-        toShootFromPickFromClear = follower.pathBuilder()
-                .addPath(new BezierCurve(pickFromClearPose, intermediatePose1, InitialShootPose))
-                .setLinearHeadingInterpolation(pickFromClearPose.getHeading(), InitialShootPose.getHeading())
+        toShootFromPickFromClear_INITIAL = follower.pathBuilder()
+                .addPath(new BezierCurve(PickFromClearPose_INITIAL, intermediatePose1, NormalShootPose))
+                .setLinearHeadingInterpolation(PickFromClearPose_INITIAL.getHeading(), NormalShootPose.getHeading())
+                .build();
+
+        toPickFromClearDirect_FUTURE = follower.pathBuilder()
+                .addPath(new BezierCurve(NormalShootPose, intermediatePose2, PickFromClearPose_FUTURE))
+                .setLinearHeadingInterpolation(NormalShootPose.getHeading(), PickFromClearPose_FUTURE.getHeading())
+                .build();
+
+        toShootFromPickFromClear_FUTURE = follower.pathBuilder()
+                .addPath(new BezierCurve(PickFromClearPose_FUTURE, intermediatePose1, NormalShootPose))
+                .setLinearHeadingInterpolation(PickFromClearPose_FUTURE.getHeading(), NormalShootPose.getHeading())
                 .build();
 
         toPickup1 = follower.pathBuilder()
-                .addPath(new BezierCurve(InitialShootPose, IntermediatePosePickup1, Intake1End))
-                .setLinearHeadingInterpolation(InitialShootPose.getHeading(), Intake1End.getHeading())
+                .addPath(new BezierCurve(NormalShootPose, IntermediatePosePickup1, Intake1End))
+                .setLinearHeadingInterpolation(NormalShootPose.getHeading(), Intake1End.getHeading())
                 .build();
 
         toShootFromPickup1 = follower.pathBuilder()
@@ -320,7 +335,7 @@ public class Red_Close_18_Curves extends LinearOpMode {
               //       shooter.setHoodAnglePos(0.5);
                     // Drive directly from shoot pose to pickFromClearPose (skipping clearPose)
                //      middleTransfer.setPower(1.0);
-                    follower.followPath(toPickFromClearDirect, true);
+                    follower.followPath(toPickFromClearDirect_INITIAL, true);
                     setState(8);
                 }
                 break;
@@ -333,8 +348,8 @@ public class Red_Close_18_Curves extends LinearOpMode {
                 break;
 
             case 9:
-                if (actionTimer.getElapsedTimeSeconds() >= PICK_FROM_CLEAR_SECONDS) {
-                    follower.followPath(toShootFromPickFromClear, true);
+                if (actionTimer.getElapsedTimeSeconds() >= PICK_FROM_CLEAR_SECONDS_INITIAL) {
+                    follower.followPath(toShootFromPickFromClear_INITIAL, true);
                     setState(10);
                 }
                 break;
@@ -359,7 +374,7 @@ public class Red_Close_18_Curves extends LinearOpMode {
                //      shooter.setHoodAnglePos(0.5);
                     // Drive directly from shoot pose to pickFromClearPose (skipping clearPose)
                     middleTransfer.setPower(1.0);
-                    follower.followPath(toPickFromClearDirect, true);
+                    follower.followPath(toPickFromClearDirect_FUTURE, true);
                     setState(13);
                 }
                 break;
@@ -372,8 +387,8 @@ public class Red_Close_18_Curves extends LinearOpMode {
                 break;
 
             case 14:
-                if (actionTimer.getElapsedTimeSeconds() >= PICK_FROM_CLEAR_SECONDS) {
-                    follower.followPath(toShootFromPickFromClear, true);
+                if (actionTimer.getElapsedTimeSeconds() >= PICK_FROM_CLEAR_SECONDS_FUTURE) {
+                    follower.followPath(toShootFromPickFromClear_FUTURE, true);
                     setState(15);
                 }
                 break;
@@ -398,7 +413,7 @@ public class Red_Close_18_Curves extends LinearOpMode {
              //        shooter.setHoodAnglePos(0.5);
                     // Drive directly from shoot pose to pickFromClearPose (skipping clearPose)
                     middleTransfer.setPower(1.0);
-                    follower.followPath(toPickFromClearDirect, true);
+                    follower.followPath(toPickFromClearDirect_FUTURE, true);
                     setState(18);
                 }
                 break;
@@ -411,8 +426,8 @@ public class Red_Close_18_Curves extends LinearOpMode {
                 break;
 
             case 19:
-                if (actionTimer.getElapsedTimeSeconds() >= PICK_FROM_CLEAR_SECONDS) {
-                    follower.followPath(toShootFromPickFromClear, true);
+                if (actionTimer.getElapsedTimeSeconds() >= PICK_FROM_CLEAR_SECONDS_FUTURE) {
+                    follower.followPath(toShootFromPickFromClear_FUTURE, true);
                     setState(20);
                 }
                 break;
