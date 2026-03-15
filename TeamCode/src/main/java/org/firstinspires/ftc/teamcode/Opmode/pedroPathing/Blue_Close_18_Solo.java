@@ -18,8 +18,8 @@ import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 import org.firstinspires.ftc.teamcode.Storedvalues.RobotPose;
 import org.firstinspires.ftc.teamcode.subsystems.Shooter;
 
-@Autonomous(name = "RCSolo", group = "Auto")
-public class Red_Close_18_Solo extends LinearOpMode {
+@Autonomous(name = "BCSolo", group = "Auto")
+public class Blue_Close_18_Solo extends LinearOpMode {
 
     // =======================
     // Hardware
@@ -64,42 +64,41 @@ public class Red_Close_18_Solo extends LinearOpMode {
     // private static final double WAIT_AT_GATE = 0.25;
 
     // =======================
-    // Poses (Unchanged)
+    // Poses (Blue: x = 144 - redX, heading = 90 + redHeading)
     // =======================
-    private final Pose startPose         = new Pose(123.5, 123, Math.toRadians(43));
-    private final Pose InitialShootPose  = new Pose(97,  97,  Math.toRadians(46.5));
-    private final Pose NormalShootPose   = new Pose(97, 84, Math.toRadians(55.5));
-    private final Pose FinalShootPose    = new Pose(97, 106, Math.toRadians(39.3));
-    private final Pose Intake2End        = new Pose(139.5, 60,  Math.toRadians(0));
-    private final Pose clearPose         = new Pose(122, 65,  Math.toRadians(0));
-    private final Pose PickFromClearPose_INITIAL = new Pose(138.4, 58, Math.toRadians(25));
-    private final Pose PickFromClearPose_FUTURE = new Pose(139, 58.35,  Math.toRadians(32.25));
-    private final Pose pickupPose1       = new Pose(102, 84,  Math.toRadians(0));
-    private final Pose IntermediatePosePickup1 = new Pose(96, 86, Math.toRadians(15));
-    private final Pose Intake1End        = new Pose(132, 84,  Math.toRadians(0));
-    private final Pose intermediatePose1 = new Pose(108, 63,  Math.toRadians(20));
-    private final Pose intermediatePose2 = new Pose(102, 66,  Math.toRadians(22.5));
-    private final Pose intermediatePosePickup2 = new Pose(94, 50, Math.toRadians(15));
-    // private final Pose parkPose          = new Pose(118, 68,  Math.toRadians(0));
+    private final Pose startPose         = new Pose(20.5,  123, Math.toRadians(133));
+    private final Pose InitialShootPose  = new Pose(47,    97,  Math.toRadians(136.5));
+    private final Pose NormalShootPose   = new Pose(47,    84,  Math.toRadians(145.5));
+    private final Pose FinalShootPose    = new Pose(47,   106,  Math.toRadians(129.3));
+    private final Pose Intake2End        = new Pose(4.5,   60,  Math.toRadians(180));
+    private final Pose clearPose         = new Pose(22,    65,  Math.toRadians(180));
+    private final Pose PickFromClearPose_INITIAL = new Pose(5.6,  58,   Math.toRadians(115));
+    private final Pose PickFromClearPose_FUTURE  = new Pose(5,    58.35, Math.toRadians(122.25));
+    private final Pose pickupPose1       = new Pose(42,    84,  Math.toRadians(180));
+    private final Pose IntermediatePosePickup1 = new Pose(48,  86,  Math.toRadians(105));
+    private final Pose Intake1End        = new Pose(12,    84,  Math.toRadians(180));
+    private final Pose intermediatePose1 = new Pose(36,    63,  Math.toRadians(110));
+    private final Pose intermediatePose2 = new Pose(42,    66,  Math.toRadians(112.5));
+    private final Pose intermediatePosePickup2 = new Pose(50, 50,  Math.toRadians(105));
+    // private final Pose parkPose       = new Pose(26,    68,  Math.toRadians(90));
 
     // =======================
-    // Pickup 3 Poses (NEW)
+    // Pickup 3 Poses (Blue: x = 144 - redX, heading = 90 + redHeading)
     // =======================
-    private final Pose Intake3End               = new Pose(135, 36,  Math.toRadians(0));
-    private final Pose IntermediatePosePickup3  = new Pose(102, 18,  Math.toRadians(12.5));
+    private final Pose Intake3End               = new Pose(9,  36,  Math.toRadians(90));
+    private final Pose IntermediatePosePickup3  = new Pose(42, 18,  Math.toRadians(102.5));
 
     // =======================
     // PedroPathing
     // =======================
     private Follower follower;
-    // toPickup2Start + toPickup2End replaced by single toPickup2 BezierCurve
     private PathChain toShootFromStart, toPickup2, toShootFromPickup2;
     private PathChain toClear, toPickFromClear, toShootFromPickFromClear;
     private PathChain toPickup1, toShootFromPickup1, toPark;
-    private PathChain toPickFromClearDirect; // NEW: shoots straight to pickFromClearPose
+    private PathChain toPickFromClearDirect;
     private PathChain toPickFromClearDirect_INITIAL, toShootFromPickFromClear_INITIAL, toPickFromClearDirect_FUTURE, toShootFromPickFromClear_FUTURE;
 
-    // Pickup 3 paths (NEW)
+    // Pickup 3 paths
     private PathChain toPickup3, toShootFromPickup3;
 
     // =======================
@@ -201,7 +200,7 @@ public class Red_Close_18_Solo extends LinearOpMode {
                 .setLinearHeadingInterpolation(PickFromClearPose_FUTURE.getHeading(), NormalShootPose.getHeading())
                 .build();
 
-        // ── Pickup 3: BezierCurve using IntermediatePosePickup3 (NEW) ─────
+        // ── Pickup 3: BezierCurve using IntermediatePosePickup3 ───────────
         toPickup3 = follower.pathBuilder()
                 .addPath(new BezierCurve(NormalShootPose, IntermediatePosePickup3, Intake3End))
                 .setLinearHeadingInterpolation(NormalShootPose.getHeading(), Intake3End.getHeading())

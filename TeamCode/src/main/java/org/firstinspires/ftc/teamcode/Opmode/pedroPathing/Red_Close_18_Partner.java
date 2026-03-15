@@ -40,7 +40,7 @@ public class Red_Close_18_Partner extends LinearOpMode {
     // Shooter Constants
     // =======================
     private static final double TARGET_RPM_INITIAL = 3400;
-    private static final double TARGET_RPM_NORMAL = 2900;
+    private static final double TARGET_RPM_NORMAL = 2880;
     private static final double TARGET_RPM_FINAL  = 3000;
     private double activeTargetRPM = TARGET_RPM_INITIAL;
 
@@ -59,21 +59,21 @@ public class Red_Close_18_Partner extends LinearOpMode {
     // =======================
     // Intake wait at pick pose
     // =======================
-    private static final double PICK_FROM_CLEAR_SECONDS_INITIAL = 1.4;
-    private static final double PICK_FROM_CLEAR_SECONDS_FUTURE = 1.15;
+    private static final double PICK_FROM_CLEAR_SECONDS_INITIAL = 1.35;
+    private static final double PICK_FROM_CLEAR_SECONDS_FUTURE = 1.1;
     // private static final double WAIT_AT_GATE = 0.25;
 
     // =======================
     // Poses (Unchanged)
     // =======================
     private final Pose startPose         = new Pose(123.5, 123, Math.toRadians(43));
-    private final Pose InitialShootPose  = new Pose(97,  97,  Math.toRadians(46));
-    private final Pose NormalShootPose   = new Pose(97, 84, Math.toRadians(53.4));
+    private final Pose InitialShootPose  = new Pose(97,  97,  Math.toRadians(46.5));
+    private final Pose NormalShootPose   = new Pose(97, 84, Math.toRadians(55.5));
     private final Pose FinalShootPose    = new Pose(97, 106, Math.toRadians(39.3));
     private final Pose Intake2End        = new Pose(139.5, 60,  Math.toRadians(0));
     private final Pose clearPose         = new Pose(122, 65,  Math.toRadians(0));
-    private final Pose PickFromClearPose_INITIAL = new Pose(138.4, 58, Math.toRadians(25));
-    private final Pose PickFromClearPose_FUTURE = new Pose(139, 58.35,  Math.toRadians(32.15));
+    private final Pose PickFromClearPose_INITIAL = new Pose(138.4, 58.25, Math.toRadians(25));
+    private final Pose PickFromClearPose_FUTURE = new Pose(139, 58.6,  Math.toRadians(32.15));
     private final Pose pickupPose1       = new Pose(102, 84,  Math.toRadians(0));
     private final Pose IntermediatePosePickup1 = new Pose(96, 86, Math.toRadians(15));
     private final Pose Intake1End        = new Pose(130.5, 84,  Math.toRadians(0));
@@ -98,7 +98,7 @@ public class Red_Close_18_Partner extends LinearOpMode {
     private final Timer actionTimer = new Timer();
     private int state = 0;
 
-    private static final double SHOOT_TIME  = 0.475;
+    private static final double SHOOT_TIME  = 0.5;
 
     @Override
     public void runOpMode() {
@@ -249,7 +249,7 @@ public class Red_Close_18_Partner extends LinearOpMode {
             case 1:
                 if (!follower.isBusy()) {
                     // Arrived at shoot pose — start transfer and open gate immediately
-                    middleTransfer.setPower(0.9);
+                    middleTransfer.setPower(0.94);
                     setState(2);
                 }
                 break;
@@ -258,7 +258,7 @@ public class Red_Close_18_Partner extends LinearOpMode {
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME) {
                     activeTargetRPM = TARGET_RPM_NORMAL;
                     Gate.setPosition(GATE_CLOSED);
-                    middleTransfer.setPower(0.85);
+                    middleTransfer.setPower(0.94);
                     follower.followPath(toPickup2, true);
                     setState(3);
                 }
@@ -277,7 +277,7 @@ public class Red_Close_18_Partner extends LinearOpMode {
                 if (!follower.isBusy()) {
                     // Arrived at shoot pose — open gate immediately
                     Gate.setPosition(GATE_OPEN);
-                    middleTransfer.setPower(0.85);
+                    middleTransfer.setPower(0.94);
                     setState(5);
                 }
                 break;
@@ -316,7 +316,7 @@ public class Red_Close_18_Partner extends LinearOpMode {
             case 9:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME) {
                     Gate.setPosition(GATE_CLOSED);
-                    middleTransfer.setPower(0.85);
+                    middleTransfer.setPower(0.94);
                     follower.followPath(toPickFromClearDirect_FUTURE, true);
                     setState(10);
                 }
@@ -347,7 +347,7 @@ public class Red_Close_18_Partner extends LinearOpMode {
             case 13:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME) {
                     Gate.setPosition(GATE_CLOSED);
-                    middleTransfer.setPower(0.85);
+                    middleTransfer.setPower(0.94);
                     follower.followPath(toPickFromClearDirect_FUTURE, true);
                     setState(14);
                 }
@@ -378,7 +378,7 @@ public class Red_Close_18_Partner extends LinearOpMode {
             case 17:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME) {
                     Gate.setPosition(GATE_CLOSED);
-                    middleTransfer.setPower(0.85);
+                    middleTransfer.setPower(0.94);
                     follower.followPath(toPickup1, true);
                     setState(18);
                 }
@@ -397,7 +397,7 @@ public class Red_Close_18_Partner extends LinearOpMode {
                 if (!follower.isBusy()) {
                     // Arrived at final shoot pose — open gate immediately
                     Gate.setPosition(GATE_OPEN);
-                    middleTransfer.setPower(0.85);
+                    middleTransfer.setPower(0.94);
                     setState(20);
                 }
                 break;
