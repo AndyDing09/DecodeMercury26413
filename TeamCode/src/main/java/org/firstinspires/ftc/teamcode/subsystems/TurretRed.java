@@ -60,10 +60,8 @@ public class TurretRed implements TurretInterface {
             newPosition = Math.max(0.0, Math.min(1.0, newPosition));
             axonServo.setPosition(newPosition);
 
-            // FIX: Do NOT reset lastError or framesWithoutTarget here.
-            // Resetting lastError caused a derivative spike on the next tracking frame
-            // (error - 0 = large jump), which drove servo oscillation when 'a' was pressed.
-            // Resetting framesWithoutTarget caused a false "just re-acquired" snap on re-entry.
+            lastError = 0;
+            framesWithoutTarget = 0;
             return;
         }
 

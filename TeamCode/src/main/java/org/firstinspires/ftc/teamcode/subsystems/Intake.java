@@ -10,9 +10,8 @@ public class Intake {
 
     private boolean intakeOn = false;
     private boolean lastCircle = false;
-    private boolean slowMode = false;
-    private boolean lastA = false;
-
+    private boolean isHighSpeed = true;
+    private boolean lastSpeedToggle = false;
 
     public Intake(HardwareMap hardwareMap) {
         middleTransfer = hardwareMap.get(DcMotor.class, "middleTransfer");
@@ -21,40 +20,41 @@ public class Intake {
         middleTransfer.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
     }
 
-    public void setSlowMode(boolean aPressed) {
-        if (aPressed && !lastA) slowMode = !slowMode;
-        lastA = aPressed;
+    public void update(boolean toggleIntake, boolean toggleSpeed, boolean reverse, VoltageSensor voltageSensor, boolean outtakeIdle) {
+        if (toggleIntake && !lastCircle) intakeOn = !intakeOn;
+        lastCircle = toggleIntake;
+
+        if (toggleSpeed && !lastSpeedToggle) isHighSpeed = !isHighSpeed;
+        lastSpeedToggle = toggleSpeed;
+
+        if (intakeOn) {
+            double intakePower = 1.0;
+            if (!isHighSpeed) {
+                intakePower = 0.55; // low speed scale
+            }
+            if (reverse) {
+                intakePower = -intakePower;
+            }
+            middleTransfer.setPower(intakePower);
+        } else if (outtakeIdle) {
+            middleTransfer.setPower(0);
+        }
     }
 
     public void update(boolean circlePressed, VoltageSensor voltageSensor, boolean outtakeIdle) {
-        if (circlePressed && !lastCircle) intakeOn = !intakeOn;
-        lastCircle = circlePressed;
-
-        if (intakeOn) {
-            double intakePower = Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage()) * (slowMode ? 0.5 : 1.0);
-            middleTransfer.setPower(intakePower);
-        } else if (outtakeIdle) {
-            middleTransfer.setPower(0);
-        }
+        update(circlePressed, false, false, voltageSensor, outtakeIdle);
     }
 
     public void update(boolean circlePressed, VoltageSensor voltageSensor, boolean outtakeIdle, boolean reverse) {
-        if (circlePressed && !lastCircle) intakeOn = !intakeOn;
-        lastCircle = circlePressed;
+        update(circlePressed, false, reverse, voltageSensor, outtakeIdle);
+    }
 
-        if (reverse) {
-            double reversePower = -Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage());
-            middleTransfer.setPower(reversePower);
-        } else if (intakeOn) {
-            double intakePower = Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage()) * (slowMode ? 0.5 : 1.0);
-            middleTransfer.setPower(intakePower);
-        } else if (outtakeIdle) {
-            middleTransfer.setPower(0);
-        }
+    public void runTransfer(VoltageSensor voltageSensor) {
+        runTransfer(voltageSensor, 1.0);
     }
 
     public void runTransfer(VoltageSensor voltageSensor, double scale) {
-        middleTransfer.setPower(Math.min(1.0, NOMINAL_VOLTAGE / voltageSensor.getVoltage()) * scale);
+        middleTransfer.setPower(Math.min(1.0, (NOMINAL_VOLTAGE / voltageSensor.getVoltage()) * scale));
     }
 
     public void stopIfNotIntaking() {
@@ -62,4 +62,6 @@ public class Intake {
     }
 
     public boolean isOn() { return intakeOn; }
+
+    public boolean isHighSpeed() { return isHighSpeed; }
 }

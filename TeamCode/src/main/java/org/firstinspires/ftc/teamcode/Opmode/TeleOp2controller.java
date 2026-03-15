@@ -32,16 +32,13 @@ public class TeleOp2controller extends LinearOpMode {
 
     public static boolean IS_RED_ALLIANCE = true;
     private boolean lastShooterSpinUp = false;
-    public static double START_X = 107;
-    public static double START_Y = 47;
-    public static double START_HEADING = -39.3;
+    public static double START_X = 8.5;
+    public static double START_Y = 72;
+    public static double START_HEADING = 0;
 
-    // Relocalization target pose
     private static final double RELOC_X       = 8.9;
-    private static final double RELOC_Y       = 135.0;
     private static final double RELOC_HEADING = 0.0;
-
-    private boolean lastRelocButton = false; // for edge detection
+    private boolean lastRelocButton = false;
 
     @Override
     public void runOpMode() {
@@ -91,32 +88,36 @@ public class TeleOp2controller extends LinearOpMode {
         while (opModeIsActive()) {
             follower.update();
 
-            // --- Relocalization (rising-edge on circle button) ---
             boolean relocPressed = gamepad1.circle;
             if (relocPressed && !lastRelocButton) {
-                follower.setPose(new Pose(RELOC_X, RELOC_Y, Math.toRadians(RELOC_HEADING)));
+                double relocY = IS_RED_ALLIANCE ? 135 : 9;
+                follower.setPose(new Pose(RELOC_X, relocY, Math.toRadians(RELOC_HEADING)));
             }
             lastRelocButton = relocPressed;
 
-            double SPEEDREDUCTION = 0.95;
+            drivetrain.drive(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
 
-            drivetrain.drive(-gamepad1.left_stick_y, gamepad1.left_stick_x * SPEEDREDUCTION, gamepad1.right_stick_x * SPEEDREDUCTION);
-
-            // FIX: Use gamepad2 right stick X for manual turret control so it doesn't
-            // conflict with gamepad1 right_stick_x which is used for drivetrain turning.
-            // This prevents stick drift on gamepad1 from accidentally triggering manual
-            // override during shooting, which caused the derivative spike + oscillation.
-            manualTurretPower = gamepad2.right_stick_x;
+            manualTurretPower = gamepad1.right_stick_x;
 
             if (gamepad1.a) turret.resetEncoder();
 
-            intake.update(gamepad1.right_bumper, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
-            intake.update(gamepad1.left_bumper, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE, gamepad1.dpad_down);
+            boolean toggleIntake = gamepad2.right_bumper;
+            boolean toggleSpeed = gamepad2.left_stick_button || gamepad2.right_stick_button;
+            boolean reverseIntake = gamepad2.dpad_down;
 
-            shooter.startShooterOnly(gamepad1.left_bumper, lastShooterSpinUp);
-            lastShooterSpinUp = gamepad1.left_bumper;
+            intake.update(toggleIntake, toggleSpeed, reverseIntake, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
 
-            shooter.handleShooterInput(gamepad1.left_bumper, gamepad1.a, gamepad1.b, intake);
+            shooter.startShooterOnly(gamepad2.left_bumper, lastShooterSpinUp);
+            lastShooterSpinUp = gamepad2.left_bumper;
+
+            // Gamepad2 bindings:
+            //   left_bumper  → spin up shooter only (no gate)
+            //   x            → full shoot sequence (spin up + open gate + outtake)
+            //   b            → kill / reset shoot sequence
+            shooter.handleShooterInput(gamepad2.left_bumper, gamepad2.a, gamepad2.b, intake);
+
+
+
 
             shooter.updateOuttakeSequence(intake, voltageSensor);
             shooter.updateFromOdometry(follower, telemetry);
@@ -125,6 +126,7 @@ public class TeleOp2controller extends LinearOpMode {
             turret.addTelemetry(telemetry);
             telemetry.addData("Shooter RPM", (int) shooter.getTargetRPM());
             telemetry.addData("Hood Pos", String.format("%.3f", shooter.getHoodAnglePos()));
+            telemetry.addData("Intake Speed", intake.isHighSpeed() ? "HIGH" : "LOW");
             telemetry.addData("Alliance", IS_RED_ALLIANCE ? "RED" : "BLUE");
             telemetry.update();
         }
