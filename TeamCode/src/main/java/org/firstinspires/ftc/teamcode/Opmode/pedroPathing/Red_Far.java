@@ -29,7 +29,7 @@ public class Red_Far extends LinearOpMode {
     private VoltageSensor voltageSensor;
     private Servo transferBlocker;
     private Servo Gate;
-
+    private Servo Turret;
     private Shooter shooter;
 
     private com.qualcomm.robotcore.util.ElapsedTime matchTimer = new com.qualcomm.robotcore.util.ElapsedTime();
@@ -37,8 +37,9 @@ public class Red_Far extends LinearOpMode {
     // =======================
     // Shooter Constants
     // =======================
-    private static final double TARGET_RPM = 4800;
-    private double activeTargetRPM = TARGET_RPM;
+    private static final double TARGET_RPM_INITIAL = 3825;
+    private static final double TARGET_RPM_FUTURE = 3725;
+    private double activeTargetRPM = TARGET_RPM_INITIAL;
 
     // =======================
     // Gate Positions
@@ -53,29 +54,32 @@ public class Red_Far extends LinearOpMode {
     private static final double TRANSFER_RESET_DELAY = 0.35;
     private static final double INITIAL_SHOOT_SPEED  = 0.01;
     private static final double INTAKE_SPEED         = 0.6;
-    private static final double SLOW_INTAKE_SPEED    = 0.5;
+    private static final double SLOW_INTAKE_SPEED    = 0.45;
 
     // =======================
     // Timing Constants
     // =======================
-    private static final double SPINUP_TIME_1 = 0.1;
-    private static final double SPINUP_TIME_2 = 0.1;
-    private static final double SHOOT_TIME_1  = 0.45;
-    private static final double SHOOT_TIME_2  = 0.45;
+    private static final double SPINUP_TIME_1 = 1.5;
+    private static final double SPINUP_TIME_2 = 0.5;
+    private static final double SHOOT_TIME_1  = 1.25;
+    private static final double SHOOT_TIME_2  = 1.25;
+    private static final double TRANSFER_SPEED = 0.5;
 
     // =======================
     // Poses
     // =======================
     private final Pose startPose      = new Pose(84,  8.3, Math.toRadians(90));
-    private final Pose shootPose      = new Pose(84,  12,  Math.toRadians(65.6));
+    private final Pose shootPose_INITIAL      = new Pose(84,  12,  Math.toRadians(69));
+    private final Pose shootPose_FUTURE = new Pose(84, 12, Math.toRadians(71));
+
 
     // Intake 1 (row 1 — far side)
     private final Pose preIntake1Pose = new Pose(102, 36,  Math.toRadians(0));
     private final Pose intake1End     = new Pose(132, 36,  Math.toRadians(0));
 
     // Intake 2 (row 2 — closer to wall)
-    private final Pose preIntake2Pose = new Pose(126, 9,   Math.toRadians(0));
-    private final Pose intake2End     = new Pose(134, 9,   Math.toRadians(0));
+    private final Pose preIntake2Pose = new Pose(126, 8.75,   Math.toRadians(0));
+    private final Pose intake2End     = new Pose(134, 8.75,   Math.toRadians(0));
 
     // Park
     private final Pose parkPose       = new Pose(120, 18,  Math.toRadians(45));
@@ -129,6 +133,8 @@ public class Red_Far extends LinearOpMode {
         frontRightDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         backRightDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
+        Turret = hardwareMap.servo.get("TurnTable");
+        Turret.setPosition(0.5);
         middleTransfer = hardwareMap.get(DcMotor.class, "middleTransfer");
         middleTransfer.setDirection(DcMotor.Direction.FORWARD);
 
@@ -150,13 +156,13 @@ public class Red_Far extends LinearOpMode {
 
         // Build paths
         toShootFromStart = follower.pathBuilder()
-                .addPath(new BezierLine(startPose, shootPose))
-                .setLinearHeadingInterpolation(startPose.getHeading(), shootPose.getHeading())
+                .addPath(new BezierLine(startPose, shootPose_INITIAL))
+                .setLinearHeadingInterpolation(startPose.getHeading(), shootPose_INITIAL.getHeading())
                 .build();
 
         toPreIntake1 = follower.pathBuilder()
-                .addPath(new BezierLine(shootPose, preIntake1Pose))
-                .setLinearHeadingInterpolation(shootPose.getHeading(), preIntake1Pose.getHeading())
+                .addPath(new BezierLine(shootPose_INITIAL, preIntake1Pose))
+                .setLinearHeadingInterpolation(shootPose_INITIAL.getHeading(), preIntake1Pose.getHeading())
                 .build();
 
         toIntake1End = follower.pathBuilder()
@@ -165,13 +171,13 @@ public class Red_Far extends LinearOpMode {
                 .build();
 
         toShootFromIntake1 = follower.pathBuilder()
-                .addPath(new BezierLine(intake1End, shootPose))
-                .setLinearHeadingInterpolation(intake1End.getHeading(), shootPose.getHeading())
+                .addPath(new BezierLine(intake1End, shootPose_FUTURE))
+                .setLinearHeadingInterpolation(intake1End.getHeading(), shootPose_FUTURE.getHeading())
                 .build();
 
         toPreIntake2 = follower.pathBuilder()
-                .addPath(new BezierLine(shootPose, preIntake2Pose))
-                .setLinearHeadingInterpolation(shootPose.getHeading(), preIntake2Pose.getHeading())
+                .addPath(new BezierLine(shootPose_FUTURE, preIntake2Pose))
+                .setLinearHeadingInterpolation(shootPose_FUTURE.getHeading(), preIntake2Pose.getHeading())
                 .build();
 
         toIntake2End = follower.pathBuilder()
@@ -185,13 +191,13 @@ public class Red_Far extends LinearOpMode {
                 .build();
 
         toShootFromIntake2 = follower.pathBuilder()
-                .addPath(new BezierLine(preIntake2Pose, shootPose))
-                .setLinearHeadingInterpolation(preIntake2Pose.getHeading(), shootPose.getHeading())
+                .addPath(new BezierLine(preIntake2Pose, shootPose_FUTURE))
+                .setLinearHeadingInterpolation(preIntake2Pose.getHeading(), shootPose_FUTURE.getHeading())
                 .build();
 
         toPark = follower.pathBuilder()
-                .addPath(new BezierLine(shootPose, parkPose))
-                .setLinearHeadingInterpolation(shootPose.getHeading(), parkPose.getHeading())
+                .addPath(new BezierLine(shootPose_FUTURE, parkPose))
+                .setLinearHeadingInterpolation(shootPose_FUTURE.getHeading(), parkPose.getHeading())
                 .build();
 
         telemetry.addLine("✅ Initialized — Far Auto");
@@ -244,9 +250,9 @@ public class Red_Far extends LinearOpMode {
 
             // State 0: Begin driving to shoot pose (slow initial crawl + transfer on)
             case 0:
-                activeTargetRPM = TARGET_RPM;
+                activeTargetRPM = TARGET_RPM_INITIAL;
                 follower.setMaxPower(INITIAL_SHOOT_SPEED);
-                middleTransfer.setPower(1.0);
+                middleTransfer.setPower(TRANSFER_SPEED);
                 follower.followPath(toShootFromStart, true);
                 middleTransfer.setPower(0.0);
                 Gate.setPosition(GATE_OPEN);
@@ -268,7 +274,7 @@ public class Red_Far extends LinearOpMode {
             // State 2: Spinup wait
             case 2:
                 if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME_1) {
-                    middleTransfer.setPower(1.0);
+                    middleTransfer.setPower(TRANSFER_SPEED);
                     setState(3);
                 }
                 break;
@@ -299,7 +305,7 @@ public class Red_Far extends LinearOpMode {
             // State 5: Short blocker reset delay, then start intake and drive to intake end
             case 5:
                 if (actionTimer.getElapsedTimeSeconds() >= TRANSFER_RESET_DELAY) {
-                    activeTargetRPM = TARGET_RPM;
+                    activeTargetRPM = TARGET_RPM_FUTURE;
                     middleTransfer.setPower(1.0);
                     follower.setMaxPower(INTAKE_SPEED);
                     follower.followPath(toIntake1End, true);
@@ -332,7 +338,7 @@ public class Red_Far extends LinearOpMode {
             case 8:
                 if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME_2) {
                     Gate.setPosition(GATE_OPEN);
-                    middleTransfer.setPower(1.0);
+                    middleTransfer.setPower(TRANSFER_SPEED);
                     setState(9);
                 }
                 break;
@@ -355,7 +361,7 @@ public class Red_Far extends LinearOpMode {
             // State 10: Wait to arrive at pre-intake 2
             case 10:
                 if (!follower.isBusy()) {
-                    transferBlocker.setPosition(SERVO_HOME);
+            //         transferBlocker.setPosition(SERVO_HOME);
                     setState(11);
                 }
                 break;
@@ -363,7 +369,7 @@ public class Red_Far extends LinearOpMode {
             // State 11: Blocker reset delay, then slow-drive forward into intake 2 end
             case 11:
                 if (actionTimer.getElapsedTimeSeconds() >= TRANSFER_RESET_DELAY) {
-                    activeTargetRPM = TARGET_RPM;
+                    activeTargetRPM = TARGET_RPM_FUTURE;
                     middleTransfer.setPower(1.0);
                     follower.setMaxPower(SLOW_INTAKE_SPEED);
                     follower.followPath(toIntake2End, true);
@@ -386,7 +392,7 @@ public class Red_Far extends LinearOpMode {
                 if (!follower.isBusy()) {
                     follower.setMaxPower(1.0);
                     follower.followPath(toShootFromIntake2, true);
-                    activeTargetRPM = TARGET_RPM;
+                    activeTargetRPM = TARGET_RPM_FUTURE;
                     setState(14);
                 }
                 break;
@@ -407,7 +413,7 @@ public class Red_Far extends LinearOpMode {
             case 15:
                 if (actionTimer.getElapsedTimeSeconds() >= SPINUP_TIME_2) {
                     Gate.setPosition(GATE_OPEN);
-                    middleTransfer.setPower(1.0);
+                    middleTransfer.setPower(TRANSFER_SPEED);
                     setState(16);
                 }
                 break;
@@ -415,9 +421,9 @@ public class Red_Far extends LinearOpMode {
             // State 16: Shoot duration, close gate, then park
             case 16:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_2) {
-                    Gate.setPosition(GATE_CLOSED);
+                   //  Gate.setPosition(GATE_CLOSED);
                     shooter.setHoodAnglePos(0.5);
-                    middleTransfer.setPower(0);
+                 //    middleTransfer.setPower(0);
                     follower.followPath(toPark, true);
                     setState(17);
                 }

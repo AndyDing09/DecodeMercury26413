@@ -39,9 +39,9 @@ public class Blue_Close_18_Solo extends LinearOpMode {
     // =======================
     // Shooter Constants
     // =======================
-    private static final double TARGET_RPM_INITIAL = 3400;
-    private static final double TARGET_RPM_NORMAL = 2880;
-    private static final double TARGET_RPM_FINAL  = 3050;
+    private static final double TARGET_RPM_INITIAL = 3380;
+    private static final double TARGET_RPM_NORMAL = 2825;
+    private static final double TARGET_RPM_FINAL  = 2825;
     private double activeTargetRPM = TARGET_RPM_INITIAL;
 
     // =======================
@@ -59,34 +59,34 @@ public class Blue_Close_18_Solo extends LinearOpMode {
     // =======================
     // Intake wait at pick pose
     // =======================
-    private static final double PICK_FROM_CLEAR_SECONDS_INITIAL = 1.4;
-    private static final double PICK_FROM_CLEAR_SECONDS_FUTURE = 1.15;
+    private static final double PICK_FROM_CLEAR_SECONDS_INITIAL = 1.35;
+    private static final double PICK_FROM_CLEAR_SECONDS_FUTURE = 1.1;
     // private static final double WAIT_AT_GATE = 0.25;
 
     // =======================
-    // Poses (Blue: x = 144 - redX, heading = 90 + redHeading)
+    // Poses (Blue: x = 144 - redX, heading = 180 - redHeading)
     // =======================
-    private final Pose startPose         = new Pose(20.5,  123, Math.toRadians(133));
-    private final Pose InitialShootPose  = new Pose(47,    97,  Math.toRadians(136.5));
-    private final Pose NormalShootPose   = new Pose(47,    84,  Math.toRadians(145.5));
-    private final Pose FinalShootPose    = new Pose(47,   106,  Math.toRadians(129.3));
+    private final Pose startPose         = new Pose(20.5,  123, Math.toRadians(137));
+    private final Pose InitialShootPose  = new Pose(47,    97,  Math.toRadians(136));
+    private final Pose NormalShootPose   = new Pose(47,    84,  Math.toRadians(131));
+    private final Pose FinalShootPose    = new Pose(47,   106,  Math.toRadians(140.7));
     private final Pose Intake2End        = new Pose(4.5,   60,  Math.toRadians(180));
     private final Pose clearPose         = new Pose(22,    65,  Math.toRadians(180));
-    private final Pose PickFromClearPose_INITIAL = new Pose(5.6,  58,   Math.toRadians(115));
-    private final Pose PickFromClearPose_FUTURE  = new Pose(5,    58.35, Math.toRadians(122.25));
+    private final Pose PickFromClearPose_INITIAL = new Pose(5.1,  61.75,   Math.toRadians(151));
+    private final Pose PickFromClearPose_FUTURE  = new Pose(5,    62.35, Math.toRadians(143.75));
     private final Pose pickupPose1       = new Pose(42,    84,  Math.toRadians(180));
-    private final Pose IntermediatePosePickup1 = new Pose(48,  86,  Math.toRadians(105));
-    private final Pose Intake1End        = new Pose(12,    84,  Math.toRadians(180));
-    private final Pose intermediatePose1 = new Pose(36,    63,  Math.toRadians(110));
-    private final Pose intermediatePose2 = new Pose(42,    66,  Math.toRadians(112.5));
-    private final Pose intermediatePosePickup2 = new Pose(50, 50,  Math.toRadians(105));
-    // private final Pose parkPose       = new Pose(26,    68,  Math.toRadians(90));
+    private final Pose IntermediatePosePickup1 = new Pose(48,  86,  Math.toRadians(165));
+    private final Pose Intake1End        = new Pose(12.5,    84,  Math.toRadians(180));
+    private final Pose intermediatePose1 = new Pose(36,    63,  Math.toRadians(160));
+    private final Pose intermediatePose2 = new Pose(42,    66,  Math.toRadians(157.5));
+    private final Pose intermediatePosePickup2 = new Pose(50, 50,  Math.toRadians(165));
+    // private final Pose parkPose       = new Pose(26,    68,  Math.toRadians(180));
 
     // =======================
-    // Pickup 3 Poses (Blue: x = 144 - redX, heading = 90 + redHeading)
+    // Pickup 3 Poses (Blue: x = 144 - redX, heading = 180 - redHeading)
     // =======================
-    private final Pose Intake3End               = new Pose(9,  36,  Math.toRadians(90));
-    private final Pose IntermediatePosePickup3  = new Pose(42, 18,  Math.toRadians(102.5));
+    private final Pose Intake3End               = new Pose(3,  36,  Math.toRadians(180));
+    private final Pose IntermediatePosePickup3  = new Pose(42, 18,  Math.toRadians(168));
 
     // =======================
     // PedroPathing
