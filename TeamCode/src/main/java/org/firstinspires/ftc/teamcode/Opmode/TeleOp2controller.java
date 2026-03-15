@@ -36,7 +36,7 @@ public class TeleOp2controller extends LinearOpMode {
     public static double START_Y = 72;
     public static double START_HEADING = 0;
 
-    private static final double RELOC_X       = 8.9;
+    private static final double RELOC_Y       = 8.9;
     private static final double RELOC_HEADING = 0.0;
     private boolean lastRelocButton = false;
 
@@ -90,8 +90,8 @@ public class TeleOp2controller extends LinearOpMode {
 
             boolean relocPressed = gamepad1.circle;
             if (relocPressed && !lastRelocButton) {
-                double relocY = IS_RED_ALLIANCE ? 135 : 9;
-                follower.setPose(new Pose(RELOC_X, relocY, Math.toRadians(RELOC_HEADING)));
+                double RELOC_X = IS_RED_ALLIANCE ? 135 : 9;
+                follower.setPose(new Pose(RELOC_X, RELOC_Y, Math.toRadians(RELOC_HEADING)));
             }
             lastRelocButton = relocPressed;
 
@@ -126,7 +126,6 @@ public class TeleOp2controller extends LinearOpMode {
             turret.addTelemetry(telemetry);
             telemetry.addData("Shooter RPM", (int) shooter.getTargetRPM());
             telemetry.addData("Hood Pos", String.format("%.3f", shooter.getHoodAnglePos()));
-            telemetry.addData("Intake Speed", intake.isHighSpeed() ? "HIGH" : "LOW");
             telemetry.addData("Alliance", IS_RED_ALLIANCE ? "RED" : "BLUE");
             telemetry.update();
         }

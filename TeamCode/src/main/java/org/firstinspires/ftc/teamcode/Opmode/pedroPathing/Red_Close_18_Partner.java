@@ -68,11 +68,11 @@ public class Red_Close_18_Partner extends LinearOpMode {
     // =======================
     private final Pose startPose         = new Pose(123.5, 123, Math.toRadians(43));
     private final Pose InitialShootPose  = new Pose(97,  97,  Math.toRadians(46.5));
-    private final Pose NormalShootPose   = new Pose(97, 84, Math.toRadians(55.5));
+    private final Pose NormalShootPose   = new Pose(97, 84, Math.toRadians(56));
     private final Pose FinalShootPose    = new Pose(97, 106, Math.toRadians(39.3));
     private final Pose Intake2End        = new Pose(139.5, 60,  Math.toRadians(0));
     private final Pose clearPose         = new Pose(122, 65,  Math.toRadians(0));
-    private final Pose PickFromClearPose_INITIAL = new Pose(138.4, 58.25, Math.toRadians(25));
+    private final Pose PickFromClearPose_INITIAL = new Pose(138.4, 58.25, Math.toRadians(23.5));
     private final Pose PickFromClearPose_FUTURE = new Pose(139, 58.6,  Math.toRadians(32.15));
     private final Pose pickupPose1       = new Pose(102, 84,  Math.toRadians(0));
     private final Pose IntermediatePosePickup1 = new Pose(96, 86, Math.toRadians(15));

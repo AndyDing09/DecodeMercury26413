@@ -11,7 +11,7 @@ public class Intake {
 
     private boolean intakeOn = false;
     private boolean lastCircle = false;
-    private boolean isHighSpeed = true;
+    public boolean isHighSpeed = true;
     private boolean lastSpeedToggle = false;
 
     public Intake(HardwareMap hardwareMap) {

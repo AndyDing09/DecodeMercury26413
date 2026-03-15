@@ -21,7 +21,7 @@ public class TurretRed implements TurretInterface {
     public static double GEAR_RATIO = 45.0 / 110.0;
     public static double kP = 0.00007;
     public static double kD = 0.00;
-    public static double DEADZONE = 2.0;
+    public static double DEADZONE = 2;
     public static double TX_SMOOTHING = 1; // 0.0 (max smooth) to 1.0 (no smooth)
 
     // Search & Tracking constants

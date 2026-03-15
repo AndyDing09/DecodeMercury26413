@@ -491,8 +491,8 @@ public class Shooter {
 
     public static double CAMERA_HEIGHT_METERS = 0.3;
     public static double CAMERA_MOUNT_ANGLE_DEGREES = 20.0;
-    public static double High_Scale = 1.08;
-    public static double Low_Scale = 0.97;
+    public static double High_Scale = 1.1;
+    public static double Low_Scale = 0.85;
 
     public void setShooterOn(boolean on) { this.shooterOn = on; }
     public Servo getGate() { return gate; }
@@ -778,7 +778,7 @@ public class Shooter {
     // =================================================================================
     public static double interpolateDistanceToRPM(double distanceM) {
         double[] inputDistances = { 1.1,    1.8,    2.38,    2.7,   3.05,    3.38,  3.64    }; // meters — REPLACE WITH YOUR DATA
-        double[] outputRPM      = { 2725.0*Low_Scale, 3165.0*Low_Scale, 3425.0*Low_Scale, 3605.0*High_Scale, 3740.0*High_Scale, 3950.0*High_Scale, 4000.0*High_Scale }; // RPM    — REPLACE WITH YOUR DATA
+        double[] outputRPM      = { 2725.0*Low_Scale, 3165.0*Low_Scale, 3425.0*Low_Scale, 3605.0*Low_Scale, 3740.0*High_Scale, 3950.0*High_Scale, 4000.0*High_Scale }; // RPM    — REPLACE WITH YOUR DATA
 
         if (distanceM <= inputDistances[0]) return outputRPM[0];
         if (distanceM >= inputDistances[inputDistances.length - 1]) return outputRPM[outputRPM.length - 1];
