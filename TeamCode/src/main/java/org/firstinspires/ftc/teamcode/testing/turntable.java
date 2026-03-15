@@ -38,7 +38,7 @@ public class turntable extends OpMode {
     public void init() {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
-        axonServo = hardwareMap.get(Servo.class, "turntable");
+        axonServo = hardwareMap.get(Servo.class, "TurnTable");
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
 
         limelight.pipelineSwitch(0);
