@@ -37,7 +37,7 @@ public class Red_Far extends LinearOpMode {
     // =======================
     // Shooter Constants
     // =======================
-    private static final double TARGET_RPM = 4000;
+    private static final double TARGET_RPM = 4800;
     private double activeTargetRPM = TARGET_RPM;
 
     // =======================
@@ -53,7 +53,7 @@ public class Red_Far extends LinearOpMode {
     private static final double TRANSFER_RESET_DELAY = 0.35;
     private static final double INITIAL_SHOOT_SPEED  = 0.01;
     private static final double INTAKE_SPEED         = 0.6;
-    private static final double SLOW_INTAKE_SPEED    = 0.3;
+    private static final double SLOW_INTAKE_SPEED    = 0.5;
 
     // =======================
     // Timing Constants
@@ -74,8 +74,8 @@ public class Red_Far extends LinearOpMode {
     private final Pose intake1End     = new Pose(132, 36,  Math.toRadians(0));
 
     // Intake 2 (row 2 — closer to wall)
-    private final Pose preIntake2Pose = new Pose(120, 9,   Math.toRadians(0));
-    private final Pose intake2End     = new Pose(132, 9,   Math.toRadians(0));
+    private final Pose preIntake2Pose = new Pose(126, 9,   Math.toRadians(0));
+    private final Pose intake2End     = new Pose(134, 9,   Math.toRadians(0));
 
     // Park
     private final Pose parkPose       = new Pose(120, 18,  Math.toRadians(45));
@@ -291,7 +291,7 @@ public class Red_Far extends LinearOpMode {
             // State 4: Wait to arrive at pre-intake 1
             case 4:
                 if (!follower.isBusy()) {
-                    transferBlocker.setPosition(SERVO_HOME);
+            //         transferBlocker.setPosition(SERVO_HOME);
                     setState(5);
                 }
                 break;

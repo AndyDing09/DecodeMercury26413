@@ -72,11 +72,11 @@ public class Red_Close_18_Solo extends LinearOpMode {
     private final Pose FinalShootPose    = new Pose(97, 106, Math.toRadians(39.3));
     private final Pose Intake2End        = new Pose(139.5, 60,  Math.toRadians(0));
     private final Pose clearPose         = new Pose(122, 65,  Math.toRadians(0));
-    private final Pose PickFromClearPose_INITIAL = new Pose(138.4, 58, Math.toRadians(25.5));
+    private final Pose PickFromClearPose_INITIAL = new Pose(138.4, 58, Math.toRadians(25));
     private final Pose PickFromClearPose_FUTURE = new Pose(139, 58.35,  Math.toRadians(32.25));
     private final Pose pickupPose1       = new Pose(102, 84,  Math.toRadians(0));
     private final Pose IntermediatePosePickup1 = new Pose(96, 86, Math.toRadians(15));
-    private final Pose Intake1End        = new Pose(130.5, 84,  Math.toRadians(0));
+    private final Pose Intake1End        = new Pose(132, 84,  Math.toRadians(0));
     private final Pose intermediatePose1 = new Pose(108, 63,  Math.toRadians(20));
     private final Pose intermediatePose2 = new Pose(102, 66,  Math.toRadians(22.5));
     private final Pose intermediatePosePickup2 = new Pose(94, 50, Math.toRadians(15));
@@ -85,8 +85,8 @@ public class Red_Close_18_Solo extends LinearOpMode {
     // =======================
     // Pickup 3 Poses (NEW)
     // =======================
-    private final Pose Intake3End               = new Pose(132, 36,  Math.toRadians(0));
-    private final Pose IntermediatePosePickup3  = new Pose(104, 20,  Math.toRadians(15));
+    private final Pose Intake3End               = new Pose(135, 36,  Math.toRadians(0));
+    private final Pose IntermediatePosePickup3  = new Pose(102, 18,  Math.toRadians(12.5));
 
     // =======================
     // PedroPathing
