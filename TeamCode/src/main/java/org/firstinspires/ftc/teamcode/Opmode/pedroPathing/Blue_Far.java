@@ -18,8 +18,8 @@ import org.firstinspires.ftc.teamcode.Storedvalues.Constants;
 import org.firstinspires.ftc.teamcode.Storedvalues.RobotPose;
 import org.firstinspires.ftc.teamcode.subsystems.Shooter;
 
-@Autonomous(name = "RF", group = "Auto")
-public class Red_Far extends LinearOpMode {
+@Autonomous(name = "BF", group = "Auto")
+public class Blue_Far extends LinearOpMode {
 
     // =======================
     // Hardware
@@ -68,21 +68,21 @@ public class Red_Far extends LinearOpMode {
     // =======================
     // Poses
     // =======================
-    private final Pose startPose      = new Pose(84,  8.3, Math.toRadians(90));
-    private final Pose shootPose_INITIAL      = new Pose(84,  12,  Math.toRadians(69));
-    private final Pose shootPose_FUTURE = new Pose(84, 12, Math.toRadians(71));
+    private final Pose startPose      = new Pose(60,  8.3, Math.toRadians(90));
+    private final Pose shootPose_INITIAL      = new Pose(60,  12,  Math.toRadians(111));
+    private final Pose shootPose_FUTURE = new Pose(60, 12, Math.toRadians(109));
 
 
     // Intake 1 (row 1 — far side)
-    private final Pose preIntake1Pose = new Pose(102, 36,  Math.toRadians(0));
-    private final Pose intake1End     = new Pose(132, 36,  Math.toRadians(0));
+    private final Pose preIntake1Pose = new Pose(42, 36,  Math.toRadians(180));
+    private final Pose intake1End     = new Pose(12, 36,  Math.toRadians(180));
 
     // Intake 2 (row 2 — closer to wall)
-    private final Pose preIntake2Pose = new Pose(126, 8.75,   Math.toRadians(0));
-    private final Pose intake2End     = new Pose(134, 8.75,   Math.toRadians(0));
+    private final Pose preIntake2Pose = new Pose(18, 8.75,   Math.toRadians(180));
+    private final Pose intake2End     = new Pose(10, 8.75,   Math.toRadians(180));
 
     // Park
-    private final Pose parkPose       = new Pose(120, 18,  Math.toRadians(45));
+    private final Pose parkPose       = new Pose(24, 18,  Math.toRadians(135));
 
     // =======================
     // PedroPathing
@@ -297,7 +297,7 @@ public class Red_Far extends LinearOpMode {
             // State 4: Wait to arrive at pre-intake 1
             case 4:
                 if (!follower.isBusy()) {
-            //         transferBlocker.setPosition(SERVO_HOME);
+                    //         transferBlocker.setPosition(SERVO_HOME);
                     setState(5);
                 }
                 break;
@@ -361,7 +361,7 @@ public class Red_Far extends LinearOpMode {
             // State 10: Wait to arrive at pre-intake 2
             case 10:
                 if (!follower.isBusy()) {
-            //         transferBlocker.setPosition(SERVO_HOME);
+                    //         transferBlocker.setPosition(SERVO_HOME);
                     setState(11);
                 }
                 break;
@@ -421,9 +421,9 @@ public class Red_Far extends LinearOpMode {
             // State 16: Shoot duration, close gate, then park
             case 16:
                 if (actionTimer.getElapsedTimeSeconds() >= SHOOT_TIME_2) {
-                   //  Gate.setPosition(GATE_CLOSED);
+                    //  Gate.setPosition(GATE_CLOSED);
                     shooter.setHoodAnglePos(0.5);
-                 //    middleTransfer.setPower(0);
+                    //    middleTransfer.setPower(0);
                     follower.followPath(toPreIntake2, true);
                     setState(17);
                 }
