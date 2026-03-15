@@ -18,7 +18,7 @@ import org.firstinspires.ftc.teamcode.subsystems.TurretRed;
 import org.firstinspires.ftc.teamcode.testing.TurretBlue;
 
 @Config
-@TeleOp(name = "TeleOp Main 1", group = "TeleOp")
+@TeleOp(name = "TeleOp Unified 2", group = "TeleOp")
 public class TeleOp2 extends LinearOpMode {
 
     private Drivetrain drivetrain;
@@ -34,6 +34,7 @@ public class TeleOp2 extends LinearOpMode {
     public static double START_X = 0;
     public static double START_Y = 0;
     public static double START_HEADING = 0;
+    private static double SPEED_REDUCTION = 0.9;
 
     @Override
     public void runOpMode() {
@@ -83,7 +84,7 @@ public class TeleOp2 extends LinearOpMode {
         while (opModeIsActive()) {
             follower.update();
 
-            drivetrain.drive(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+            drivetrain.drive(-gamepad1.left_stick_y * SPEED_REDUCTION, gamepad1.left_stick_x, gamepad1.right_stick_x);
 
             manualTurretPower = gamepad2.right_stick_x;
 

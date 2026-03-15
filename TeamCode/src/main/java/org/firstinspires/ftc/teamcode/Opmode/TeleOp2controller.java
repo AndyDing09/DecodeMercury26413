@@ -98,21 +98,25 @@ public class TeleOp2controller extends LinearOpMode {
             }
             lastRelocButton = relocPressed;
 
-            double speed = 0.95;
+            double SPEEDREDUCTION = 0.95;
 
-            drivetrain.drive(-gamepad1.left_stick_y * speed, gamepad1.left_stick_x * speed, gamepad1.right_stick_x * speed);
+            drivetrain.drive(-gamepad1.left_stick_y, gamepad1.left_stick_x * SPEEDREDUCTION, gamepad1.right_stick_x * SPEEDREDUCTION);
 
-            manualTurretPower = gamepad1.right_stick_x;
+            // FIX: Use gamepad2 right stick X for manual turret control so it doesn't
+            // conflict with gamepad1 right_stick_x which is used for drivetrain turning.
+            // This prevents stick drift on gamepad1 from accidentally triggering manual
+            // override during shooting, which caused the derivative spike + oscillation.
+            manualTurretPower = gamepad2.right_stick_x;
 
             if (gamepad1.a) turret.resetEncoder();
 
-            intake.update(gamepad2.right_bumper, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
-            intake.update(gamepad2.left_bumper, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE, gamepad2.dpad_down);
+            intake.update(gamepad1.right_bumper, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
+            intake.update(gamepad1.left_bumper, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE, gamepad1.dpad_down);
 
-            shooter.startShooterOnly(gamepad2.left_bumper, lastShooterSpinUp);
-            lastShooterSpinUp = gamepad2.left_bumper;
+            shooter.startShooterOnly(gamepad1.left_bumper, lastShooterSpinUp);
+            lastShooterSpinUp = gamepad1.left_bumper;
 
-            shooter.handleShooterInput(gamepad2.left_bumper, gamepad2.a, gamepad2.b, intake);
+            shooter.handleShooterInput(gamepad1.left_bumper, gamepad1.a, gamepad1.b, intake);
 
             shooter.updateOuttakeSequence(intake, voltageSensor);
             shooter.updateFromOdometry(follower, telemetry);
