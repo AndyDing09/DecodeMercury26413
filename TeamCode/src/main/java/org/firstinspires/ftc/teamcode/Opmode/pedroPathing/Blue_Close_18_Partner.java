@@ -80,7 +80,7 @@ public class Blue_Close_18_Partner extends LinearOpMode {
     private final Pose intermediatePose1 = new Pose(36,    63,  Math.toRadians(160));
     private final Pose intermediatePose2 = new Pose(42,    66,  Math.toRadians(157.5));
     private final Pose intermediatePosePickup2 = new Pose(50, 50,  Math.toRadians(165));
-    // private final Pose parkPose       = new Pose(26,    68,  Math.toRadians(90));
+    // private final Pose parkPose       = new Pose(26,    68,  Math.toRadians(180));
 
     // =======================
     // PedroPathing
