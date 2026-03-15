@@ -7,6 +7,7 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 public class Intake {
     private final DcMotor middleTransfer;
     private static final double NOMINAL_VOLTAGE = 12.0;
+    private static final double BASE_POWER = 0.5;
 
     private boolean intakeOn = false;
     private boolean lastCircle = false;
@@ -20,37 +21,29 @@ public class Intake {
         middleTransfer.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
     }
 
-    public void update(boolean toggleIntake, boolean toggleSpeed, boolean reverse, VoltageSensor voltageSensor, boolean outtakeIdle) {
+    public void update(boolean toggleIntake, boolean toggleSpeed, VoltageSensor voltageSensor, boolean outtakeIdle) {
         if (toggleIntake && !lastCircle) intakeOn = !intakeOn;
         lastCircle = toggleIntake;
 
         if (toggleSpeed && !lastSpeedToggle) isHighSpeed = !isHighSpeed;
         lastSpeedToggle = toggleSpeed;
 
+        double basePower = isHighSpeed ? 1.0 : BASE_POWER;
+        double intakePower = 1.0;
+        
         if (intakeOn) {
-            double intakePower = 1.0;
-            if (!isHighSpeed) {
-                intakePower = 0.55; // low speed scale
-            }
-            if (reverse) {
-                intakePower = -intakePower;
-            }
             middleTransfer.setPower(intakePower);
         } else if (outtakeIdle) {
             middleTransfer.setPower(0);
+        } else if (middleTransfer.getPower() > 0) {
+            // If outtake sequence started the transfer, ensure it respects voltage compensation
+            middleTransfer.setPower(basePower);
         }
     }
 
-    public void update(boolean circlePressed, VoltageSensor voltageSensor, boolean outtakeIdle) {
-        update(circlePressed, false, false, voltageSensor, outtakeIdle);
-    }
-
-    public void update(boolean circlePressed, VoltageSensor voltageSensor, boolean outtakeIdle, boolean reverse) {
-        update(circlePressed, false, reverse, voltageSensor, outtakeIdle);
-    }
-
     public void runTransfer(VoltageSensor voltageSensor) {
-        runTransfer(voltageSensor, 1.0);
+        double scale = isHighSpeed ? 1.0 : 0.55;
+        runTransfer(voltageSensor, scale);
     }
 
     public void runTransfer(VoltageSensor voltageSensor, double scale) {
@@ -62,6 +55,4 @@ public class Intake {
     }
 
     public boolean isOn() { return intakeOn; }
-
-    public boolean isHighSpeed() { return isHighSpeed; }
 }

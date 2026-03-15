@@ -102,10 +102,10 @@ public class TeleOp2controller extends LinearOpMode {
             if (gamepad1.a) turret.resetEncoder();
 
             boolean toggleIntake = gamepad2.right_bumper;
-            boolean toggleSpeed = gamepad2.left_stick_button || gamepad2.right_stick_button;
-            boolean reverseIntake = gamepad2.dpad_down;
+            boolean toggleSpeed = gamepad2.left_bumper;
+            // boolean reverseIntake = gamepad2.dpad_down;
 
-            intake.update(toggleIntake, toggleSpeed, reverseIntake, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
+            intake.update(toggleIntake, toggleSpeed , voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
 
             shooter.startShooterOnly(gamepad2.left_bumper, lastShooterSpinUp);
             lastShooterSpinUp = gamepad2.left_bumper;
