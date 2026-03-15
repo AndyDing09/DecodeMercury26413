@@ -106,8 +106,6 @@ public class TeleOp2controller extends LinearOpMode {
 
             if (gamepad1.a) turret.resetEncoder();
 
-            intake.setSlowMode(gamepad2.a);
-
             intake.update(gamepad2.right_bumper, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE);
             intake.update(gamepad2.left_bumper, voltageSensor, shooter.getOuttakeState() == Shooter.OuttakeState.IDLE, gamepad2.dpad_down);
 
